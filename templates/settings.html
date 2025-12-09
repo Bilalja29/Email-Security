@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Email Security Tool{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen">
+    {% include 'partials/sidebar.html' %}
+    
+    <div class="flex-1 ml-64">
+        {% include 'partials/header.html' %}
+        
+        <main class="p-6">
+            <h1 class="text-2xl font-bold mb-6">Settings</h1>
+            
+            <div class="grid lg:grid-cols-2 gap-6">
+                <!-- IMAP Account -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-envelope text-purple-400"></i>
+                        Email Account
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark">
+                            <div>
+                                <p class="font-medium">{{ current_user.email if current_user.is_authenticated else 'demo@example.com' }}</p>
+                                <p class="text-sm text-gray-400">{{ current_user.imap_host if current_user.is_authenticated else 'imap.gmail.com' }}:{{ current_user.imap_port if current_user.is_authenticated else '993' }}</p>
+                            </div>
+                            <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm">Connected</span>
+                        </div>
+                        
+                        <button class="w-full py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all">
+                            <i class="fas fa-plus mr-2"></i> Add Another Account
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Encryption Keys -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-key text-yellow-400"></i>
+                        Encryption Keys
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="p-4 rounded-lg bg-cyber-dark">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-medium">RSA-2048 Key Pair</span>
+                                <span class="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs">Active</span>
+                            </div>
+                            <p class="text-xs text-gray-400 font-mono">Fingerprint: 4A:2B:8C:D1:E5:F6:...</p>
+                            <p class="text-xs text-gray-500 mt-1">Generated: Jan 15, 2024</p>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button class="flex-1 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all text-sm">
+                                <i class="fas fa-sync mr-1"></i> Regenerate
+                            </button>
+                            <button class="flex-1 py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all text-sm">
+                                <i class="fas fa-download mr-1"></i> Export Public Key
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Security Preferences -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-shield-halved text-blue-400"></i>
+                        Security Preferences
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Auto-quarantine dangerous emails</span>
+                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Block executable attachments</span>
+                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Scan links in real-time</span>
+                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Enable phishing detection</span>
+                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Notifications -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-bell text-red-400"></i>
+                        Notifications
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Threat alerts</span>
+                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Quarantine notifications</span>
+                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                        
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Weekly security report</span>
+                            <input type="checkbox" class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-3">
+                <button class="px-6 py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all">
+                    Reset to Defaults
+                </button>
+                <button class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-medium">
+                    Save Changes
+                </button>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

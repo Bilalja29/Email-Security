@@ -1,0 +1,94 @@
+<header class="sticky top-0 z-30 bg-cyber-darker/80 backdrop-blur-lg border-b border-cyber-border">
+    <div class="flex items-center justify-between px-6 py-4">
+        <!-- Search -->
+        <div class="flex-1 max-w-xl">
+            <div class="relative">
+                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" placeholder="Search emails, threats, domains..." 
+                       class="w-full pl-12 pr-4 py-2.5 rounded-lg bg-cyber-card border border-cyber-border focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all">
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="flex items-center gap-4 ml-6">
+            <!-- Theme Toggle -->
+            <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-cyber-card transition-all">
+                <i class="fas fa-moon text-gray-400"></i>
+            </button>
+            
+            <!-- Notifications -->
+            <div class="relative">
+                <button class="p-2 rounded-lg hover:bg-cyber-card transition-all relative" onclick="toggleNotifications()">
+                    <i class="fas fa-bell text-gray-400"></i>
+                    <span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500"></span>
+                </button>
+                
+                <!-- Notification Dropdown -->
+                <div id="notification-dropdown" class="hidden absolute right-0 top-full mt-2 w-80 bg-cyber-card border border-cyber-border rounded-xl shadow-xl overflow-hidden">
+                    <div class="p-4 border-b border-cyber-border">
+                        <h3 class="font-semibold">Notifications</h3>
+                    </div>
+                    <div class="max-h-80 overflow-y-auto">
+                        <div class="p-4 border-b border-cyber-border hover:bg-cyber-dark transition-all">
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                                    <i class="fas fa-exclamation-triangle text-red-400 text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm">Phishing email blocked from <span class="font-medium">paypa1-secure.com</span></p>
+                                    <span class="text-xs text-gray-400">2 minutes ago</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 border-b border-cyber-border hover:bg-cyber-dark transition-all">
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                                    <i class="fas fa-virus text-yellow-400 text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm">Malware detected in <span class="font-medium">Invoice.pdf.exe</span></p>
+                                    <span class="text-xs text-gray-400">15 minutes ago</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 hover:bg-cyber-dark transition-all">
+                            <div class="flex items-start gap-3">
+                                <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                                    <i class="fas fa-check text-green-400 text-sm"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm">Inbox scan completed - <span class="font-medium">15 emails processed</span></p>
+                                    <span class="text-xs text-gray-400">1 hour ago</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('alerts') }}" class="block p-3 text-center text-purple-400 text-sm hover:bg-cyber-dark transition-all border-t border-cyber-border">
+                        View All Alerts
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Scan Button -->
+            <button class="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-medium flex items-center gap-2">
+                <i class="fas fa-radar"></i>
+                <span>Scan Now</span>
+            </button>
+        </div>
+    </div>
+</header>
+
+<script>
+    function toggleNotifications() {
+        const dropdown = document.getElementById('notification-dropdown');
+        dropdown.classList.toggle('hidden');
+    }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        const dropdown = document.getElementById('notification-dropdown');
+        if (!e.target.closest('.relative')) {
+            dropdown?.classList.add('hidden');
+        }
+    });
+</script>

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Inbox - Email Security Tool{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen">
+    {% include 'partials/sidebar.html' %}
+    
+    <div class="flex-1 ml-64">
+        {% include 'partials/header.html' %}
+        
+        <main class="p-6">
+            <!-- Page Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold">Inbox</h1>
+                    <p class="text-gray-400">{{ emails|length }} emails with security analysis</p>
+                </div>
+                
+                <!-- Filters -->
+                <div class="flex items-center gap-2">
+                    <a href="{{ url_for('inbox') }}" class="px-4 py-2 rounded-lg {{ 'bg-purple-500/20 text-purple-400 border border-purple-500/30' if current_filter == 'all' else 'bg-cyber-card border border-cyber-border hover:border-purple-500/50' }} transition-all">
+                        All
+                    </a>
+                    <a href="{{ url_for('inbox') }}?filter=safe" class="px-4 py-2 rounded-lg {{ 'bg-green-500/20 text-green-400 border border-green-500/30' if current_filter == 'safe' else 'bg-cyber-card border border-cyber-border hover:border-green-500/50' }} transition-all">
+                        <i class="fas fa-check-circle mr-1"></i> Safe
+                    </a>
+                    <a href="{{ url_for('inbox') }}?filter=warning" class="px-4 py-2 rounded-lg {{ 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' if current_filter == 'warning' else 'bg-cyber-card border border-cyber-border hover:border-yellow-500/50' }} transition-all">
+                        <i class="fas fa-exclamation mr-1"></i> Warning
+                    </a>
+                    <a href="{{ url_for('inbox') }}?filter=dangerous" class="px-4 py-2 rounded-lg {{ 'bg-red-500/20 text-red-400 border border-red-500/30' if current_filter == 'dangerous' else 'bg-cyber-card border border-cyber-border hover:border-red-500/50' }} transition-all">
+                        <i class="fas fa-skull-crossbones mr-1"></i> Dangerous
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Email List -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl overflow-hidden">
+                <div class="divide-y divide-cyber-border">
+                    {% for email in emails %}
+                    <a href="{{ url_for('email_detail', email_id=email.id) }}" class="block p-4 hover:bg-cyber-dark transition-all">
+                        <div class="flex items-center gap-4">
+                            <!-- Risk Indicator -->
+                            <div class="w-12 h-12 rounded-full flex items-center justify-center shrink-0
+                                {% if email.riskLevel == 'dangerous' %}bg-red-500/20
+                                {% elif email.riskLevel == 'warning' %}bg-yellow-500/20
+                                {% else %}bg-green-500/20{% endif %}">
+                                <i class="fas {% if email.riskLevel == 'dangerous' %}fa-skull-crossbones text-red-400{% elif email.riskLevel == 'warning' %}fa-exclamation-triangle text-yellow-400{% else %}fa-check-circle text-green-400{% endif %} text-lg"></i>
+                            </div>
+                            
+                            <!-- Email Info -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-3 mb-1">
+                                    <span class="font-semibold">{{ email.fromName }}</span>
+                                    <span class="text-gray-500 text-sm truncate">{{ email['from'] }}</span>
+                                    {% if email.isQuarantined %}
+                                    <span class="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 text-xs">
+                                        <i class="fas fa-radiation mr-1"></i> Quarantined
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-gray-300 truncate">{{ email.subject }}</p>
+                                {% if email.threats %}
+                                <div class="flex flex-wrap gap-1 mt-2">
+                                    {% for threat in email.threats[:2] %}
+                                    <span class="px-2 py-0.5 rounded bg-red-500/10 text-red-400 text-xs">{{ threat }}</span>
+                                    {% endfor %}
+                                    {% if email.threats|length > 2 %}
+                                    <span class="px-2 py-0.5 rounded bg-gray-500/10 text-gray-400 text-xs">+{{ email.threats|length - 2 }} more</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Risk Score & Date -->
+                            <div class="text-right shrink-0">
+                                <div class="px-3 py-1 rounded-full text-sm font-medium mb-1
+                                    {% if email.riskLevel == 'dangerous' %}bg-red-500/20 text-red-400
+                                    {% elif email.riskLevel == 'warning' %}bg-yellow-500/20 text-yellow-400
+                                    {% else %}bg-green-500/20 text-green-400{% endif %}">
+                                    {{ email.riskScore }}% Risk
+                                </div>
+                                <div class="text-gray-500 text-sm">{{ email.date[:10] }}</div>
+                            </div>
+                            
+                            <!-- Attachment Indicator -->
+                            {% if email.attachments %}
+                            <div class="shrink-0">
+                                <div class="w-8 h-8 rounded-lg bg-cyber-dark flex items-center justify-center" title="{{ email.attachments|length }} attachment(s)">
+                                    <i class="fas fa-paperclip text-gray-400"></i>
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <i class="fas fa-chevron-right text-gray-600"></i>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}

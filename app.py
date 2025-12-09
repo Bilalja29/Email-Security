@@ -1,0 +1,719 @@
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from datetime import datetime, timedelta
+import json
+import random
+import re
+import base64
+import hashlib
+import os
+from functools import wraps
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)
+app.config['SESSION_TYPE'] = 'filesystem'
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Mock user database
+users_db = {}
+
+class User(UserMixin):
+    def __init__(self, id, email, imap_host, imap_port):
+        self.id = id
+        self.email = email
+        self.imap_host = imap_host
+        self.imap_port = imap_port
+
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id in users_db:
+        data = users_db[user_id]
+        return User(user_id, data['email'], data['imap_host'], data['imap_port'])
+    return None
+
+# Mock Email Data
+MOCK_EMAILS = [
+    {
+        "id": "1",
+        "from": "security@paypa1-secure.com",
+        "fromName": "PayPal Security Team",
+        "to": "user@example.com",
+        "subject": "URGENT: Your account has been limited - Action Required Immediately!",
+        "body": """<p>Dear Valued Customer,</p>
+        <p>We've noticed some <strong>unusual activity</strong> on your PayPal account. Your account access has been limited until you verify your information.</p>
+        <p><strong>Click here immediately to restore access:</strong> <a href="http://paypa1-secure.com/verify">http://paypa1-secure.com/verify</a></p>
+        <p>If you don't verify within 24 hours, your account will be permanently suspended.</p>
+        <p>Enter your login credentials and credit card information to verify your identity.</p>
+        <p>PayPal Security Team</p>""",
+        "date": "2024-01-15T09:23:00",
+        "attachments": [],
+        "riskScore": 95,
+        "riskLevel": "dangerous",
+        "threats": ["Spoofed domain (paypa1 vs paypal)", "Urgent language", "Suspicious link", "Requests sensitive info"],
+        "senderReputation": 5,
+        "domainAge": "2 days",
+        "isQuarantined": True
+    },
+    {
+        "id": "2",
+        "from": "invoice@supplier-billing.net",
+        "fromName": "Accounts Payable",
+        "to": "user@example.com",
+        "subject": "Invoice #INV-2024-0892 - Payment Required",
+        "body": """<p>Dear Customer,</p>
+        <p>Please find attached the invoice for your recent order. Payment is due within 7 days.</p>
+        <p>Invoice Amount: $4,299.00</p>
+        <p>Due Date: January 22, 2024</p>
+        <p>Please review the attached document and process payment accordingly.</p>
+        <p>Best regards,<br>Accounts Department</p>""",
+        "date": "2024-01-14T14:45:00",
+        "attachments": [
+            {"name": "Invoice_2024_0892.pdf.exe", "size": "245 KB", "type": "executable", "status": "malicious"}
+        ],
+        "riskScore": 88,
+        "riskLevel": "dangerous",
+        "threats": ["Malicious attachment (.exe disguised as .pdf)", "Unknown sender", "Financial urgency"],
+        "senderReputation": 15,
+        "domainAge": "14 days",
+        "isQuarantined": True
+    },
+    {
+        "id": "3",
+        "from": "noreply@amazon.com",
+        "fromName": "Amazon",
+        "to": "user@example.com",
+        "subject": "Your Amazon order #112-4567890-1234567 has shipped",
+        "body": """<p>Hello,</p>
+        <p>Great news! Your package is on its way.</p>
+        <p><strong>Order Details:</strong></p>
+        <ul>
+        <li>Wireless Bluetooth Headphones - Black</li>
+        <li>Estimated delivery: January 18-20, 2024</li>
+        </ul>
+        <p>Track your package: <a href="https://amazon.com/track/112-4567890">https://amazon.com/track/112-4567890</a></p>
+        <p>Thank you for shopping with us!</p>""",
+        "date": "2024-01-14T11:30:00",
+        "attachments": [],
+        "riskScore": 12,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 98,
+        "domainAge": "28 years",
+        "isQuarantined": False
+    },
+    {
+        "id": "4",
+        "from": "hr@company-careers.biz",
+        "fromName": "HR Department",
+        "to": "user@example.com",
+        "subject": "Job Offer - Senior Developer Position - $150k/year",
+        "body": """<p>Congratulations!</p>
+        <p>After reviewing your resume, we are pleased to offer you a position as Senior Developer with an annual salary of $150,000.</p>
+        <p>To proceed with the hiring process, please provide:</p>
+        <ul>
+        <li>Copy of your passport</li>
+        <li>Bank account details for salary deposit</li>
+        <li>Social Security Number</li>
+        </ul>
+        <p>Reply to this email with the requested documents within 48 hours to secure your position.</p>
+        <p>HR Department</p>""",
+        "date": "2024-01-13T16:20:00",
+        "attachments": [
+            {"name": "Job_Offer_Letter.docm", "size": "89 KB", "type": "macro-enabled", "status": "suspicious"}
+        ],
+        "riskScore": 82,
+        "riskLevel": "dangerous",
+        "threats": ["Unsolicited job offer", "Requests sensitive personal info", "Macro-enabled document", "Suspicious domain"],
+        "senderReputation": 8,
+        "domainAge": "5 days",
+        "isQuarantined": True
+    },
+    {
+        "id": "5",
+        "from": "notifications@github.com",
+        "fromName": "GitHub",
+        "to": "user@example.com",
+        "subject": "[GitHub] A new security advisory affects your repositories",
+        "body": """<p>Hi there,</p>
+        <p>A new security vulnerability has been identified that may affect one or more of your repositories.</p>
+        <p><strong>Advisory:</strong> CVE-2024-1234 - Critical vulnerability in lodash</p>
+        <p><strong>Affected repositories:</strong></p>
+        <ul>
+        <li>my-awesome-project</li>
+        </ul>
+        <p>We recommend updating the affected dependency as soon as possible.</p>
+        <p>View the advisory: <a href="https://github.com/advisories/CVE-2024-1234">https://github.com/advisories/CVE-2024-1234</a></p>
+        <p>Thanks,<br>The GitHub Security Team</p>""",
+        "date": "2024-01-13T09:15:00",
+        "attachments": [],
+        "riskScore": 8,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 99,
+        "domainAge": "16 years",
+        "isQuarantined": False
+    },
+    {
+        "id": "6",
+        "from": "support@micros0ft-security.com",
+        "fromName": "Microsoft Support",
+        "to": "user@example.com",
+        "subject": "Your Microsoft 365 subscription will be cancelled",
+        "body": """<p>Dear User,</p>
+        <p>We were unable to process your payment for Microsoft 365. Your subscription will be cancelled in 24 hours unless you update your payment information.</p>
+        <p>Update your payment now: <a href="http://micros0ft-security.com/billing">http://micros0ft-security.com/billing</a></p>
+        <p>Your current payment method: Visa ending in ****1234</p>
+        <p>To avoid service interruption, please update your credit card information immediately.</p>
+        <p>Microsoft Support Team</p>""",
+        "date": "2024-01-12T18:45:00",
+        "attachments": [],
+        "riskScore": 91,
+        "riskLevel": "dangerous",
+        "threats": ["Spoofed domain (micros0ft vs microsoft)", "Urgency tactics", "Phishing link", "Payment scam"],
+        "senderReputation": 3,
+        "domainAge": "1 day",
+        "isQuarantined": True
+    },
+    {
+        "id": "7",
+        "from": "newsletter@techcrunch.com",
+        "fromName": "TechCrunch",
+        "to": "user@example.com",
+        "subject": "This Week in Tech: AI Breakthroughs and Startup News",
+        "body": """<p>Hi there,</p>
+        <p>Here's your weekly roundup of the biggest tech stories:</p>
+        <ul>
+        <li><strong>OpenAI announces GPT-5</strong> - The next generation of AI is here</li>
+        <li><strong>Tesla's new robotaxi</strong> - First look at the autonomous vehicle</li>
+        <li><strong>Startup funding hits record</strong> - $50B invested in Q4 2023</li>
+        </ul>
+        <p>Read more at <a href="https://techcrunch.com">techcrunch.com</a></p>
+        <p>Unsubscribe: <a href="https://techcrunch.com/unsubscribe">Manage preferences</a></p>""",
+        "date": "2024-01-12T10:00:00",
+        "attachments": [],
+        "riskScore": 5,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 95,
+        "domainAge": "18 years",
+        "isQuarantined": False
+    },
+    {
+        "id": "8",
+        "from": "admin@university.edu",
+        "fromName": "University IT Department",
+        "to": "user@example.com",
+        "subject": "Important: Email System Maintenance Notice",
+        "body": """<p>Dear Faculty/Staff,</p>
+        <p>The IT Department will be performing scheduled maintenance on the email system this weekend.</p>
+        <p><strong>Maintenance Window:</strong></p>
+        <ul>
+        <li>Date: Saturday, January 20, 2024</li>
+        <li>Time: 2:00 AM - 6:00 AM EST</li>
+        </ul>
+        <p>During this time, email services may be temporarily unavailable. Please plan accordingly.</p>
+        <p>If you have any questions, contact the IT Help Desk at helpdesk@university.edu</p>
+        <p>Thank you for your patience.</p>""",
+        "date": "2024-01-11T14:30:00",
+        "attachments": [],
+        "riskScore": 10,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 92,
+        "domainAge": "25 years",
+        "isQuarantined": False
+    },
+    {
+        "id": "9",
+        "from": "winner@lottery-intl.org",
+        "fromName": "International Lottery Commission",
+        "to": "user@example.com",
+        "subject": "CONGRATULATIONS! You've Won $5,000,000 USD!!!",
+        "body": """<p>DEAR LUCKY WINNER,</p>
+        <p>We are pleased to inform you that your email address was selected in our INTERNATIONAL LOTTERY DRAW held on January 10, 2024.</p>
+        <p><strong>WINNING AMOUNT: $5,000,000.00 USD</strong></p>
+        <p>To claim your prize, please provide the following information:</p>
+        <ul>
+        <li>Full Name</li>
+        <li>Address</li>
+        <li>Phone Number</li>
+        <li>Bank Account Number</li>
+        <li>Copy of ID</li>
+        </ul>
+        <p>Processing fee: $500 (refundable from winnings)</p>
+        <p>Contact our claims agent immediately!</p>""",
+        "date": "2024-01-11T08:15:00",
+        "attachments": [],
+        "riskScore": 98,
+        "riskLevel": "dangerous",
+        "threats": ["Lottery scam", "Requests personal/financial info", "Advance fee fraud", "ALL CAPS subject"],
+        "senderReputation": 1,
+        "domainAge": "3 days",
+        "isQuarantined": True
+    },
+    {
+        "id": "10",
+        "from": "team@slack.com",
+        "fromName": "Slack",
+        "to": "user@example.com",
+        "subject": "New message from John in #general",
+        "body": """<p>Hi there,</p>
+        <p>You have a new message in Slack:</p>
+        <blockquote>
+        <p><strong>John Smith</strong> in <strong>#general</strong>:</p>
+        <p>"Hey team, can we schedule a quick sync for the project update? How does 3pm today work?"</p>
+        </blockquote>
+        <p><a href="https://slack.com/app">Reply in Slack</a></p>
+        <p>You're receiving this email because you have notifications enabled.</p>""",
+        "date": "2024-01-10T15:45:00",
+        "attachments": [],
+        "riskScore": 6,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 97,
+        "domainAge": "15 years",
+        "isQuarantined": False
+    },
+    {
+        "id": "11",
+        "from": "billing@netflix-payment.support",
+        "fromName": "Netflix Billing",
+        "to": "user@example.com",
+        "subject": "Payment Failed - Update your payment method",
+        "body": """<p>Hi,</p>
+        <p>We couldn't process your payment for Netflix Premium ($19.99/month).</p>
+        <p>Your current card: 4532-****-****-7890</p>
+        <p>Please update your payment details within 48 hours or your account will be suspended:</p>
+        <p><a href="http://netflix-payment.support/update">Update Payment Method</a></p>
+        <p>For security, please have your credit card ready when updating.</p>
+        <p>Netflix Support</p>""",
+        "date": "2024-01-10T12:30:00",
+        "attachments": [],
+        "riskScore": 87,
+        "riskLevel": "dangerous",
+        "threats": ["Fake Netflix domain", "Payment phishing", "Urgency tactics", "Partial card number bait"],
+        "senderReputation": 7,
+        "domainAge": "6 days",
+        "isQuarantined": True
+    },
+    {
+        "id": "12",
+        "from": "john.smith@colleague-mail.com",
+        "fromName": "John Smith (CEO)",
+        "to": "user@example.com",
+        "subject": "Quick favor needed - Urgent",
+        "body": """<p>Hi,</p>
+        <p>I'm in a meeting and can't talk right now. I need you to do me a quick favor.</p>
+        <p>Can you purchase some gift cards for client appreciation? I need 5x $200 Amazon gift cards.</p>
+        <p>Buy them and send me the redemption codes via email. I'll reimburse you when I'm back.</p>
+        <p>This is urgent - please handle ASAP.</p>
+        <p>Thanks,<br>John Smith<br>CEO</p>""",
+        "date": "2024-01-09T16:20:00",
+        "attachments": [],
+        "riskScore": 79,
+        "riskLevel": "warning",
+        "threats": ["CEO impersonation", "Gift card scam", "Urgency pressure", "Unusual request"],
+        "senderReputation": 20,
+        "domainAge": "10 days",
+        "isQuarantined": False
+    },
+    {
+        "id": "13",
+        "from": "docs@google.com",
+        "fromName": "Google Docs",
+        "to": "user@example.com",
+        "subject": "Sarah shared a document with you: Q4 Report",
+        "body": """<p>sarah.johnson@company.com shared a document with you:</p>
+        <p><strong>Q4 Financial Report 2023</strong></p>
+        <p>Click to open: <a href="https://docs.google.com/document/d/abc123">Open in Google Docs</a></p>
+        <p>Note from Sarah: "Please review before tomorrow's meeting"</p>
+        <p>Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043</p>""",
+        "date": "2024-01-09T11:00:00",
+        "attachments": [],
+        "riskScore": 15,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 99,
+        "domainAge": "26 years",
+        "isQuarantined": False
+    },
+    {
+        "id": "14",
+        "from": "finance@client-company.com",
+        "fromName": "Finance Department",
+        "to": "user@example.com",
+        "subject": "Wire Transfer Confirmation - $25,000",
+        "body": """<p>Dear Partner,</p>
+        <p>This email confirms the wire transfer request we discussed on the phone.</p>
+        <p><strong>Transfer Details:</strong></p>
+        <ul>
+        <li>Amount: $25,000.00 USD</li>
+        <li>Account: 1234567890</li>
+        <li>Routing: 021000021</li>
+        <li>Reference: INV-2024-001</li>
+        </ul>
+        <p>Please process this transfer today. The attached document contains banking details.</p>
+        <p>Finance Department</p>""",
+        "date": "2024-01-08T09:45:00",
+        "attachments": [
+            {"name": "Banking_Details.zip", "size": "156 KB", "type": "archive", "status": "suspicious"}
+        ],
+        "riskScore": 75,
+        "riskLevel": "warning",
+        "threats": ["Suspicious wire transfer request", "Compressed attachment", "Financial urgency", "No prior contact"],
+        "senderReputation": 35,
+        "domainAge": "45 days",
+        "isQuarantined": False
+    },
+    {
+        "id": "15",
+        "from": "delivery@fedex.com",
+        "fromName": "FedEx Delivery",
+        "to": "user@example.com",
+        "subject": "Your package is scheduled for delivery tomorrow",
+        "body": """<p>Hello,</p>
+        <p>Your FedEx package is scheduled for delivery tomorrow between 9 AM - 5 PM.</p>
+        <p><strong>Tracking Number:</strong> 7891234567890</p>
+        <p><strong>Delivery Address:</strong> 123 Main Street</p>
+        <p>Track your package: <a href="https://fedex.com/track?id=7891234567890">View Tracking Details</a></p>
+        <p>Delivery options:</p>
+        <ul>
+        <li>Leave at door</li>
+        <li>Hold at FedEx location</li>
+        <li>Reschedule delivery</li>
+        </ul>
+        <p>Thank you for choosing FedEx.</p>""",
+        "date": "2024-01-08T07:30:00",
+        "attachments": [],
+        "riskScore": 8,
+        "riskLevel": "safe",
+        "threats": [],
+        "senderReputation": 96,
+        "domainAge": "30 years",
+        "isQuarantined": False
+    }
+]
+
+# Activity Log
+activity_log = []
+
+def add_log_entry(action, threat_type, severity, details):
+    activity_log.insert(0, {
+        "id": len(activity_log) + 1,
+        "timestamp": datetime.now().isoformat(),
+        "action": action,
+        "threatType": threat_type,
+        "severity": severity,
+        "details": details
+    })
+
+# Initialize some log entries
+add_log_entry("Blocked", "Phishing", "high", "Blocked email from paypa1-secure.com")
+add_log_entry("Quarantined", "Malware", "critical", "Quarantined attachment Invoice_2024_0892.pdf.exe")
+add_log_entry("Warning", "Spoofing", "medium", "Detected spoofed sender micros0ft-security.com")
+add_log_entry("Scanned", "None", "low", "Routine scan completed - 15 emails processed")
+
+# Threat Detection Functions
+def analyze_email_threats(email_body, subject, sender):
+    threats = []
+    risk_score = 0
+    
+    # Phishing keywords
+    phishing_keywords = ['urgent', 'immediately', 'verify', 'suspended', 'limited', 'confirm', 'update payment', 'click here', 'act now', 'expires']
+    for keyword in phishing_keywords:
+        if keyword.lower() in email_body.lower() or keyword.lower() in subject.lower():
+            threats.append(f"Suspicious keyword: '{keyword}'")
+            risk_score += 10
+    
+    # Suspicious domains
+    suspicious_tlds = ['.biz', '.xyz', '.top', '.click', '.support']
+    for tld in suspicious_tlds:
+        if tld in sender.lower():
+            threats.append(f"Suspicious TLD: {tld}")
+            risk_score += 15
+    
+    # URL pattern detection
+    url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\$$\$$,]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+    urls = re.findall(url_pattern, email_body)
+    for url in urls:
+        if any(sus in url.lower() for sus in ['login', 'verify', 'secure', 'update', 'confirm']):
+            threats.append(f"Suspicious URL detected")
+            risk_score += 20
+    
+    # Sensitive data requests
+    sensitive_patterns = ['credit card', 'ssn', 'social security', 'bank account', 'password', 'passport']
+    for pattern in sensitive_patterns:
+        if pattern in email_body.lower():
+            threats.append(f"Requests sensitive data: {pattern}")
+            risk_score += 25
+    
+    return min(risk_score, 100), threats
+
+def detect_sensitive_data(text):
+    findings = []
+    
+    # Credit card pattern
+    cc_pattern = r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b'
+    if re.search(cc_pattern, text):
+        findings.append({"type": "Credit Card", "severity": "high"})
+    
+    # Email pattern
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    emails = re.findall(email_pattern, text)
+    if emails:
+        findings.append({"type": "Email Address", "count": len(emails), "severity": "medium"})
+    
+    # Phone pattern
+    phone_pattern = r'\b(?:\+?1[-.\s]?)?$$?[0-9]{3}$$?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b'
+    if re.search(phone_pattern, text):
+        findings.append({"type": "Phone Number", "severity": "medium"})
+    
+    # CNIC/SSN pattern
+    ssn_pattern = r'\b[0-9]{3}[-\s]?[0-9]{2}[-\s]?[0-9]{4}\b'
+    if re.search(ssn_pattern, text):
+        findings.append({"type": "SSN/CNIC", "severity": "critical"})
+    
+    # IBAN pattern
+    iban_pattern = r'\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b'
+    if re.search(iban_pattern, text):
+        findings.append({"type": "IBAN", "severity": "high"})
+    
+    return findings
+
+# Mock encryption functions
+def mock_encrypt_aes(plaintext):
+    # Simulate AES-256-GCM encryption
+    key = os.urandom(32)
+    iv = os.urandom(12)
+    encrypted = base64.b64encode(plaintext.encode()).decode()
+    return {
+        "ciphertext": encrypted,
+        "iv": base64.b64encode(iv).decode(),
+        "key": base64.b64encode(key).decode(),
+        "algorithm": "AES-256-GCM"
+    }
+
+def mock_sign_rsa(message):
+    # Simulate RSA-2048 signing
+    signature = hashlib.sha256(message.encode()).hexdigest()
+    return {
+        "signature": signature,
+        "algorithm": "RSA-2048-SHA256",
+        "publicKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhki...(mock)...IDAQAB\n-----END PUBLIC KEY-----"
+    }
+
+# Routes
+@app.route('/')
+def landing():
+    return render_template('landing.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        imap_host = request.form.get('imap_host')
+        imap_port = request.form.get('imap_port')
+        demo_mode = request.form.get('demo_mode')
+        
+        # Create user session (demo mode)
+        user_id = email or 'demo@example.com'
+        users_db[user_id] = {
+            'email': email or 'demo@example.com',
+            'imap_host': imap_host or 'imap.gmail.com',
+            'imap_port': imap_port or '993'
+        }
+        
+        user = User(user_id, users_db[user_id]['email'], 
+                   users_db[user_id]['imap_host'], 
+                   users_db[user_id]['imap_port'])
+        login_user(user)
+        
+        add_log_entry("Login", "None", "info", f"User logged in: {user.email}")
+        
+        return redirect(url_for('dashboard'))
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('landing'))
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    stats = {
+        'total_scanned': len(MOCK_EMAILS),
+        'threats_blocked': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous']),
+        'quarantined': len([e for e in MOCK_EMAILS if e.get('isQuarantined', False)]),
+        'safe_emails': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe'])
+    }
+    
+    risk_distribution = {
+        'safe': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']),
+        'warning': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'warning']),
+        'dangerous': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous'])
+    }
+    
+    recent_threats = [e for e in MOCK_EMAILS if e['riskLevel'] in ['warning', 'dangerous']][:5]
+    
+    return render_template('dashboard.html', stats=stats, 
+                         risk_distribution=risk_distribution,
+                         recent_threats=recent_threats)
+
+@app.route('/inbox')
+@login_required
+def inbox():
+    filter_type = request.args.get('filter', 'all')
+    
+    if filter_type == 'safe':
+        emails = [e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']
+    elif filter_type == 'warning':
+        emails = [e for e in MOCK_EMAILS if e['riskLevel'] == 'warning']
+    elif filter_type == 'dangerous':
+        emails = [e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous']
+    else:
+        emails = MOCK_EMAILS
+    
+    return render_template('inbox.html', emails=emails, current_filter=filter_type)
+
+@app.route('/email/<email_id>')
+@login_required
+def email_detail(email_id):
+    email = next((e for e in MOCK_EMAILS if e['id'] == email_id), None)
+    if not email:
+        flash('Email not found', 'error')
+        return redirect(url_for('inbox'))
+    
+    return render_template('email_detail.html', email=email)
+
+@app.route('/api/sandbox/analyze', methods=['POST'])
+@login_required
+def sandbox_analyze():
+    data = request.json
+    attachment_name = data.get('attachment', '')
+    
+    # Simulate sandbox analysis
+    import time
+    
+    behaviors = []
+    verdict = 'clean'
+    
+    if '.exe' in attachment_name.lower() or 'exe' in attachment_name.lower():
+        behaviors = [
+            {"action": "File system access", "target": "C:\\Windows\\System32", "severity": "critical"},
+            {"action": "Registry modification", "target": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", "severity": "high"},
+            {"action": "Network connection", "target": "185.234.72.19:443", "severity": "high"},
+            {"action": "Process injection", "target": "explorer.exe", "severity": "critical"}
+        ]
+        verdict = 'malicious'
+    elif '.docm' in attachment_name.lower() or 'macro' in attachment_name.lower():
+        behaviors = [
+            {"action": "Macro execution", "target": "AutoOpen()", "severity": "medium"},
+            {"action": "PowerShell invocation", "target": "powershell.exe -enc", "severity": "high"},
+            {"action": "Download attempt", "target": "http://malware-host.com/payload", "severity": "critical"}
+        ]
+        verdict = 'suspicious'
+    elif '.zip' in attachment_name.lower():
+        behaviors = [
+            {"action": "Archive extraction", "target": "temp folder", "severity": "low"},
+            {"action": "Hidden file detected", "target": ".hidden_payload.exe", "severity": "high"}
+        ]
+        verdict = 'suspicious'
+    else:
+        behaviors = [
+            {"action": "File opened", "target": "Document viewer", "severity": "info"},
+            {"action": "No malicious activity", "target": "N/A", "severity": "info"}
+        ]
+        verdict = 'clean'
+    
+    report = {
+        "filename": attachment_name,
+        "fileSize": f"{random.randint(50, 500)} KB",
+        "fileType": attachment_name.split('.')[-1].upper() if '.' in attachment_name else "Unknown",
+        "md5": hashlib.md5(attachment_name.encode()).hexdigest(),
+        "sha256": hashlib.sha256(attachment_name.encode()).hexdigest(),
+        "behaviors": behaviors,
+        "verdict": verdict,
+        "analysisTime": f"{random.randint(5, 15)} seconds",
+        "sandboxEnvironment": "Windows 10 x64 - Isolated VM"
+    }
+    
+    add_log_entry("Sandbox Analysis", "Attachment", 
+                 "critical" if verdict == "malicious" else "medium",
+                 f"Analyzed {attachment_name}: {verdict}")
+    
+    return jsonify(report)
+
+@app.route('/compose', methods=['GET', 'POST'])
+@login_required
+def compose():
+    if request.method == 'POST':
+        data = request.json
+        content = data.get('content', '')
+        encrypt = data.get('encrypt', False)
+        sign = data.get('sign', False)
+        self_destruct = data.get('selfDestruct', None)
+        
+        result = {
+            "status": "success",
+            "sensitiveData": detect_sensitive_data(content)
+        }
+        
+        if encrypt:
+            result["encryption"] = mock_encrypt_aes(content)
+        
+        if sign:
+            result["signature"] = mock_sign_rsa(content)
+        
+        if self_destruct:
+            result["selfDestruct"] = {
+                "enabled": True,
+                "expiresAt": (datetime.now() + timedelta(hours=int(self_destruct))).isoformat()
+            }
+        
+        add_log_entry("Secure Email", "Encryption", "info", 
+                     f"Email composed with encryption={encrypt}, signature={sign}")
+        
+        return jsonify(result)
+    
+    return render_template('compose.html')
+
+@app.route('/alerts')
+@login_required
+def alerts():
+    return render_template('alerts.html', logs=activity_log)
+
+@app.route('/quarantine')
+@login_required
+def quarantine():
+    quarantined = [e for e in MOCK_EMAILS if e.get('isQuarantined', False)]
+    return render_template('quarantine.html', emails=quarantined)
+
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template('settings.html')
+
+@app.route('/api/stats')
+@login_required
+def get_stats():
+    return jsonify({
+        'total_scanned': len(MOCK_EMAILS),
+        'threats_blocked': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous']),
+        'quarantined': len([e for e in MOCK_EMAILS if e.get('isQuarantined', False)]),
+        'safe_emails': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']),
+        'risk_distribution': {
+            'safe': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']),
+            'warning': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'warning']),
+            'dangerous': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous'])
+        }
+    })
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)

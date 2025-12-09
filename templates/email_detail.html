@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}{{ email.subject }} - Email Security Tool{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen">
+    {% include 'partials/sidebar.html' %}
+    
+    <div class="flex-1 ml-64">
+        {% include 'partials/header.html' %}
+        
+        <main class="p-6">
+            <!-- Back Button -->
+            <a href="{{ url_for('inbox') }}" class="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-all">
+                <i class="fas fa-arrow-left"></i>
+                <span>Back to Inbox</span>
+            </a>
+            
+            <div class="grid lg:grid-cols-3 gap-6">
+                <!-- Email Content -->
+                <div class="lg:col-span-2 space-y-6">
+                    <!-- Email Header -->
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center gap-4">
+                                <div class="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold
+                                    {% if email.riskLevel == 'dangerous' %}bg-red-500/20 text-red-400
+                                    {% elif email.riskLevel == 'warning' %}bg-yellow-500/20 text-yellow-400
+                                    {% else %}bg-green-500/20 text-green-400{% endif %}">
+                                    {{ email.fromName[0] }}
+                                </div>
+                                <div>
+                                    <h1 class="text-xl font-bold">{{ email.fromName }}</h1>
+                                    <p class="text-gray-400">{{ email['from'] }}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="px-4 py-2 rounded-lg font-bold text-lg
+                                    {% if email.riskLevel == 'dangerous' %}bg-red-500/20 text-red-400 border border-red-500/30
+                                    {% elif email.riskLevel == 'warning' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
+                                    {% else %}bg-green-500/20 text-green-400 border border-green-500/30{% endif %}">
+                                    {{ email.riskScore }}% Risk
+                                </div>
+                                <p class="text-gray-500 text-sm mt-2">{{ email.date[:10] }}</p>
+                            </div>
+                        </div>
+                        
+                        <h2 class="text-2xl font-semibold mb-4">{{ email.subject }}</h2>
+                        
+                        <!-- Email Body -->
+                        <div class="prose prose-invert max-w-none bg-cyber-dark rounded-lg p-6 border border-cyber-border">
+                            {{ email.body|safe }}
+                        </div>
+                    </div>
+                    
+                    <!-- Attachments -->
+                    {% if email.attachments %}
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <i class="fas fa-paperclip text-purple-400"></i>
+                            Attachments ({{ email.attachments|length }})
+                        </h3>
+                        
+                        <div class="space-y-3">
+                            {% for attachment in email.attachments %}
+                            <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border 
+                                {% if attachment.status == 'malicious' %}border-red-500/30{% elif attachment.status == 'suspicious' %}border-yellow-500/30{% else %}border-cyber-border{% endif %}">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center
+                                        {% if attachment.status == 'malicious' %}bg-red-500/20{% elif attachment.status == 'suspicious' %}bg-yellow-500/20{% else %}bg-gray-500/20{% endif %}">
+                                        <i class="fas fa-file text-lg
+                                            {% if attachment.status == 'malicious' %}text-red-400{% elif attachment.status == 'suspicious' %}text-yellow-400{% else %}text-gray-400{% endif %}"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium">{{ attachment.name }}</p>
+                                        <p class="text-sm text-gray-400">{{ attachment.size }} - {{ attachment.type }}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="px-3 py-1 rounded-full text-sm font-medium
+                                        {% if attachment.status == 'malicious' %}bg-red-500/20 text-red-400
+                                        {% elif attachment.status == 'suspicious' %}bg-yellow-500/20 text-yellow-400
+                                        {% else %}bg-green-500/20 text-green-400{% endif %}">
+                                        {{ attachment.status|capitalize }}
+                                    </span>
+                                    <button onclick="analyzeSandbox('{{ attachment.name }}')" class="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
+                                        <i class="fas fa-flask"></i>
+                                        Analyze in Sandbox
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Sandbox Report Modal -->
+                    <div id="sandbox-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                        <div class="bg-cyber-card border border-cyber-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div class="p-6 border-b border-cyber-border">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-xl font-bold flex items-center gap-2">
+                                        <i class="fas fa-flask text-purple-400"></i>
+                                        Sandbox Analysis Report
+                                    </h3>
+                                    <button onclick="closeSandboxModal()" class="p-2 hover:bg-cyber-dark rounded-lg transition-all">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="sandbox-content" class="p-6">
+                                <!-- Content will be injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Security Analysis Sidebar -->
+                <div class="space-y-6">
+                    <!-- Threat Summary -->
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4">Threat Analysis</h3>
+                        
+                        <div class="space-y-4">
+                            <!-- Sender Reputation -->
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-gray-400">Sender Reputation</span>
+                                    <span class="font-medium
+                                        {% if email.senderReputation > 70 %}text-green-400
+                                        {% elif email.senderReputation > 40 %}text-yellow-400
+                                        {% else %}text-red-400{% endif %}">
+                                        {{ email.senderReputation }}/100
+                                    </span>
+                                </div>
+                                <div class="h-2 bg-cyber-dark rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full transition-all
+                                        {% if email.senderReputation > 70 %}bg-green-500
+                                        {% elif email.senderReputation > 40 %}bg-yellow-500
+                                        {% else %}bg-red-500{% endif %}"
+                                        style="width: {{ email.senderReputation }}%"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Domain Age -->
+                            <div class="flex items-center justify-between py-3 border-t border-cyber-border">
+                                <span class="text-gray-400">Domain Age</span>
+                                <span class="font-medium {% if 'day' in email.domainAge %}text-red-400{% else %}text-green-400{% endif %}">
+                                    {{ email.domainAge }}
+                                </span>
+                            </div>
+                            
+                            <!-- Quarantine Status -->
+                            <div class="flex items-center justify-between py-3 border-t border-cyber-border">
+                                <span class="text-gray-400">Status</span>
+                                {% if email.isQuarantined %}
+                                <span class="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-400 text-sm">
+                                    <i class="fas fa-radiation mr-1"></i> Quarantined
+                                </span>
+                                {% else %}
+                                <span class="px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-sm">
+                                    <i class="fas fa-inbox mr-1"></i> In Inbox
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detected Threats -->
+                    {% if email.threats %}
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <i class="fas fa-exclamation-triangle text-red-400"></i>
+                            Detected Threats ({{ email.threats|length }})
+                        </h3>
+                        
+                        <div class="space-y-2">
+                            {% for threat in email.threats %}
+                            <div class="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                                <i class="fas fa-times-circle text-red-400 mt-0.5"></i>
+                                <span class="text-sm">{{ threat }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Quick Actions -->
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4">Actions</h3>
+                        
+                        <div class="space-y-2">
+                            {% if not email.isQuarantined %}
+                            <button class="w-full py-2 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-radiation"></i>
+                                Move to Quarantine
+                            </button>
+                            {% else %}
+                            <button class="w-full py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-check"></i>
+                                Restore to Inbox
+                            </button>
+                            {% endif %}
+                            
+                            <button class="w-full py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-trash"></i>
+                                Delete Permanently
+                            </button>
+                            
+                            <button class="w-full py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-flag"></i>
+                                Report as Spam
+                            </button>
+                            
+                            <button class="w-full py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-file-pdf"></i>
+                                Export Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    function analyzeSandbox(filename) {
+        const modal = document.getElementById('sandbox-modal');
+        const content = document.getElementById('sandbox-content');
+        
+        modal.classList.remove('hidden');
+        
+        // Show loading state
+        content.innerHTML = `
+            <div class="text-center py-12">
+                <div class="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
+                <h4 class="text-xl font-semibold mb-2">Analyzing in Sandbox...</h4>
+                <p class="text-gray-400">Executing file in isolated environment</p>
+                <div class="mt-6 space-y-2 text-left max-w-md mx-auto">
+                    <div class="flex items-center gap-3 text-sm" id="step-1">
+                        <i class="fas fa-spinner fa-spin text-purple-400"></i>
+                        <span>Initializing sandbox environment...</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm text-gray-500" id="step-2">
+                        <i class="fas fa-circle text-gray-600"></i>
+                        <span>Detonating file...</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm text-gray-500" id="step-3">
+                        <i class="fas fa-circle text-gray-600"></i>
+                        <span>Monitoring behavior...</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm text-gray-500" id="step-4">
+                        <i class="fas fa-circle text-gray-600"></i>
+                        <span>Generating report...</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Animate steps
+        setTimeout(() => {
+            document.getElementById('step-1').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>Sandbox initialized</span>';
+            document.getElementById('step-2').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Detonating file...</span>';
+            document.getElementById('step-2').classList.remove('text-gray-500');
+        }, 1500);
+        
+        setTimeout(() => {
+            document.getElementById('step-2').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>File detonated</span>';
+            document.getElementById('step-3').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Monitoring behavior...</span>';
+            document.getElementById('step-3').classList.remove('text-gray-500');
+        }, 3000);
+        
+        setTimeout(() => {
+            document.getElementById('step-3').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>Behavior analyzed</span>';
+            document.getElementById('step-4').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Generating report...</span>';
+            document.getElementById('step-4').classList.remove('text-gray-500');
+        }, 4500);
+        
+        // Fetch actual report
+        setTimeout(() => {
+            fetch('/api/sandbox/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ attachment: filename })
+            })
+            .then(res => res.json())
+            .then(report => {
+                content.innerHTML = renderSandboxReport(report);
+            });
+        }, 6000);
+    }
+    
+    function renderSandboxReport(report) {
+        const verdictColors = {
+            'malicious': 'red',
+            'suspicious': 'yellow',
+            'clean': 'green'
+        };
+        const color = verdictColors[report.verdict] || 'gray';
+        
+        let behaviorsHtml = report.behaviors.map(b => `
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-500/10 border border-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-500/20">
+                <i class="fas fa-${b.severity === 'critical' ? 'skull' : b.severity === 'high' ? 'exclamation-triangle' : 'info-circle'} text-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-400 mt-0.5"></i>
+                <div>
+                    <p class="font-medium">${b.action}</p>
+                    <p class="text-sm text-gray-400">Target: <code class="text-xs bg-cyber-dark px-1 rounded">${b.target}</code></p>
+                </div>
+                <span class="ml-auto px-2 py-0.5 rounded text-xs font-medium bg-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-500/20 text-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-400">${b.severity}</span>
+            </div>
+        `).join('');
+        
+        return `
+            <div class="space-y-6">
+                <!-- Verdict Banner -->
+                <div class="p-4 rounded-xl bg-${color}-500/20 border border-${color}-500/30 text-center">
+                    <i class="fas fa-${report.verdict === 'malicious' ? 'skull-crossbones' : report.verdict === 'suspicious' ? 'exclamation-triangle' : 'check-circle'} text-4xl text-${color}-400 mb-2"></i>
+                    <h4 class="text-2xl font-bold text-${color}-400">${report.verdict.toUpperCase()}</h4>
+                </div>
+                
+                <!-- File Info -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="p-4 rounded-lg bg-cyber-dark">
+                        <p class="text-gray-400 text-sm mb-1">Filename</p>
+                        <p class="font-mono text-sm">${report.filename}</p>
+                    </div>
+                    <div class="p-4 rounded-lg bg-cyber-dark">
+                        <p class="text-gray-400 text-sm mb-1">File Size</p>
+                        <p class="font-medium">${report.fileSize}</p>
+                    </div>
+                    <div class="p-4 rounded-lg bg-cyber-dark">
+                        <p class="text-gray-400 text-sm mb-1">File Type</p>
+                        <p class="font-medium">${report.fileType}</p>
+                    </div>
+                    <div class="p-4 rounded-lg bg-cyber-dark">
+                        <p class="text-gray-400 text-sm mb-1">Analysis Time</p>
+                        <p class="font-medium">${report.analysisTime}</p>
+                    </div>
+                </div>
+                
+                <!-- Hashes -->
+                <div class="p-4 rounded-lg bg-cyber-dark">
+                    <p class="text-gray-400 text-sm mb-2">File Hashes</p>
+                    <p class="font-mono text-xs mb-1"><span class="text-gray-400">MD5:</span> ${report.md5}</p>
+                    <p class="font-mono text-xs"><span class="text-gray-400">SHA256:</span> ${report.sha256}</p>
+                </div>
+                
+                <!-- Behaviors -->
+                <div>
+                    <h4 class="font-semibold mb-3">Observed Behaviors</h4>
+                    <div class="space-y-2">
+                        ${behaviorsHtml}
+                    </div>
+                </div>
+                
+                <!-- Environment -->
+                <div class="p-4 rounded-lg bg-cyber-dark text-center">
+                    <p class="text-gray-400 text-sm">Sandbox Environment</p>
+                    <p class="font-medium">${report.sandboxEnvironment}</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    function closeSandboxModal() {
+        document.getElementById('sandbox-modal').classList.add('hidden');
+    }
+    
+    // Close modal on escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeSandboxModal();
+    });
+</script>
+{% endblock %}

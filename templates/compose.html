@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+
+{% block title %}Compose Secure Email - Email Security Tool{% endblock %}
+
+{% block content %}
+<div class="flex min-h-screen">
+    {% include 'partials/sidebar.html' %}
+    
+    <div class="flex-1 ml-64">
+        {% include 'partials/header.html' %}
+        
+        <main class="p-6">
+            <div class="max-w-4xl mx-auto">
+                <h1 class="text-2xl font-bold mb-2">Compose Secure Email</h1>
+                <p class="text-gray-400 mb-6">Send encrypted and digitally signed messages</p>
+                
+                <div class="grid lg:grid-cols-3 gap-6">
+                    <!-- Compose Form -->
+                    <div class="lg:col-span-2">
+                        <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                            <form id="compose-form" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">To</label>
+                                    <input type="email" id="to-email" placeholder="recipient@example.com" 
+                                           class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Subject</label>
+                                    <input type="text" id="subject" placeholder="Email subject" 
+                                           class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium mb-2">Message</label>
+                                    <textarea id="content" rows="10" placeholder="Write your message..." 
+                                              class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all resize-none"
+                                              oninput="checkSensitiveData()"></textarea>
+                                </div>
+                                
+                                <!-- Sensitive Data Warning -->
+                                <div id="sensitive-warning" class="hidden p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                                    <div class="flex items-start gap-3">
+                                        <i class="fas fa-exclamation-triangle text-yellow-400 mt-0.5"></i>
+                                        <div>
+                                            <h4 class="font-semibold text-yellow-400">Sensitive Data Detected</h4>
+                                            <p class="text-sm text-gray-300 mt-1">Your message contains sensitive information. We recommend enabling encryption.</p>
+                                            <div id="sensitive-items" class="flex flex-wrap gap-2 mt-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Security Options -->
+                                <div class="border-t border-cyber-border pt-4 mt-4">
+                                    <h3 class="font-semibold mb-4">Security Options</h3>
+                                    
+                                    <div class="space-y-3">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-cyber-dark border border-cyber-border cursor-pointer hover:border-purple-500/50 transition-all">
+                                            <input type="checkbox" id="encrypt" class="w-5 h-5 rounded border-cyber-border bg-cyber-dark text-purple-500 focus:ring-purple-500">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2">
+                                                    <i class="fas fa-lock text-green-400"></i>
+                                                    <span class="font-medium">AES-256-GCM Encryption</span>
+                                                </div>
+                                                <p class="text-sm text-gray-400">Encrypt message content with military-grade encryption</p>
+                                            </div>
+                                        </label>
+                                        
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-cyber-dark border border-cyber-border cursor-pointer hover:border-purple-500/50 transition-all">
+                                            <input type="checkbox" id="sign" class="w-5 h-5 rounded border-cyber-border bg-cyber-dark text-purple-500 focus:ring-purple-500">
+                                            <div class="flex-1">
+                                                <div class="flex items-center gap-2">
+                                                    <i class="fas fa-signature text-blue-400"></i>
+                                                    <span class="font-medium">RSA-2048 Digital Signature</span>
+                                                </div>
+                                                <p class="text-sm text-gray-400">Sign message to verify authenticity</p>
+                                            </div>
+                                        </label>
+                                        
+                                        <div class="p-3 rounded-lg bg-cyber-dark border border-cyber-border">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <i class="fas fa-bomb text-red-400"></i>
+                                                <span class="font-medium">Self-Destruct Timer</span>
+                                            </div>
+                                            <select id="self-destruct" class="w-full px-3 py-2 rounded-lg bg-cyber-darker border border-cyber-border focus:border-purple-500 outline-none">
+                                                <option value="">No self-destruct</option>
+                                                <option value="1">1 hour</option>
+                                                <option value="24">1 day</option>
+                                                <option value="168">1 week</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-3 pt-4">
+                                    <button type="submit" class="flex-1 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-semibold flex items-center justify-center gap-2">
+                                        <i class="fas fa-paper-plane"></i>
+                                        Send Secure Email
+                                    </button>
+                                    <button type="button" class="px-6 py-3 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Security Info Sidebar -->
+                    <div class="space-y-6">
+                        <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                            <h3 class="font-semibold mb-4 flex items-center gap-2">
+                                <i class="fas fa-shield-halved text-purple-400"></i>
+                                Encryption Status
+                            </h3>
+                            
+                            <div id="encryption-status" class="space-y-3">
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-gray-400">Encryption</span>
+                                    <span id="enc-status" class="px-2 py-1 rounded bg-gray-500/20 text-gray-400 text-sm">Disabled</span>
+                                </div>
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-gray-400">Signature</span>
+                                    <span id="sig-status" class="px-2 py-1 rounded bg-gray-500/20 text-gray-400 text-sm">Disabled</span>
+                                </div>
+                                <div class="flex items-center justify-between py-2">
+                                    <span class="text-gray-400">Self-Destruct</span>
+                                    <span id="sd-status" class="px-2 py-1 rounded bg-gray-500/20 text-gray-400 text-sm">Disabled</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                            <h3 class="font-semibold mb-4">Recipient Instructions</h3>
+                            <p class="text-sm text-gray-400 mb-4">When you send an encrypted email, the recipient will need:</p>
+                            <ul class="space-y-2 text-sm text-gray-300">
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-key text-purple-400 mt-1"></i>
+                                    <span>Decryption key (shared securely)</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-certificate text-blue-400 mt-1"></i>
+                                    <span>Your public key to verify signature</span>
+                                </li>
+                                <li class="flex items-start gap-2">
+                                    <i class="fas fa-clock text-red-400 mt-1"></i>
+                                    <span>Access before self-destruct timer</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Result Modal -->
+                <div id="result-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                    <div class="bg-cyber-card border border-cyber-border rounded-2xl max-w-lg w-full">
+                        <div class="p-6 border-b border-cyber-border">
+                            <h3 class="text-xl font-bold flex items-center gap-2">
+                                <i class="fas fa-check-circle text-green-400"></i>
+                                Email Secured
+                            </h3>
+                        </div>
+                        <div id="result-content" class="p-6">
+                            <!-- Content injected here -->
+                        </div>
+                        <div class="p-4 border-t border-cyber-border">
+                            <button onclick="closeResultModal()" class="w-full py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    // Update status indicators
+    document.getElementById('encrypt').addEventListener('change', function() {
+        document.getElementById('enc-status').className = this.checked 
+            ? 'px-2 py-1 rounded bg-green-500/20 text-green-400 text-sm' 
+            : 'px-2 py-1 rounded bg-gray-500/20 text-gray-400 text-sm';
+        document.getElementById('enc-status').textContent = this.checked ? 'AES-256' : 'Disabled';
+    });
+    
+    document.getElementById('sign').addEventListener('change', function() {
+        document.getElementById('sig-status').className = this.checked 
+            ? 'px-2 py-1 rounded bg-blue-500/20 text-blue-400 text-sm' 
+            : 'px-2 py-1 rounded bg-gray-500/20 text-gray-400 text-sm';
+        document.getElementById('sig-status').textContent = this.checked ? 'RSA-2048' : 'Disabled';
+    });
+    
+    document.getElementById('self-destruct').addEventListener('change', function() {
+        const val = this.value;
+        const status = document.getElementById('sd-status');
+        if (val) {
+            status.className = 'px-2 py-1 rounded bg-red-500/20 text-red-400 text-sm';
+            status.textContent = val === '1' ? '1 hour' : val === '24' ? '1 day' : '1 week';
+        } else {
+            status.className = 'px-2 py-1 rounded bg-gray-500/20 text-gray-400 text-sm';
+            status.textContent = 'Disabled';
+        }
+    });
+    
+    // Check for sensitive data
+    function checkSensitiveData() {
+        const content = document.getElementById('content').value;
+        const warning = document.getElementById('sensitive-warning');
+        const items = document.getElementById('sensitive-items');
+        
+        const patterns = [
+            { name: 'Credit Card', regex: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b/ },
+            { name: 'SSN/CNIC', regex: /\b[0-9]{3}[-\s]?[0-9]{2}[-\s]?[0-9]{4}\b/ },
+            { name: 'Phone Number', regex: /\b(?:\+?1[-.\s]?)?$$?[0-9]{3}$$?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/ },
+            { name: 'Password', regex: /password\s*[:=]\s*\S+/i },
+            { name: 'IBAN', regex: /\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b/ }
+        ];
+        
+        const found = patterns.filter(p => p.regex.test(content));
+        
+        if (found.length > 0) {
+            warning.classList.remove('hidden');
+            items.innerHTML = found.map(f => 
+                `<span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">${f.name}</span>`
+            ).join('');
+            
+            // Auto-enable encryption
+            document.getElementById('encrypt').checked = true;
+            document.getElementById('encrypt').dispatchEvent(new Event('change'));
+        } else {
+            warning.classList.add('hidden');
+        }
+    }
+    
+    // Form submission
+    document.getElementById('compose-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const content = document.getElementById('content').value;
+        const encrypt = document.getElementById('encrypt').checked;
+        const sign = document.getElementById('sign').checked;
+        const selfDestruct = document.getElementById('self-destruct').value;
+        
+        fetch('/compose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, encrypt, sign, selfDestruct })
+        })
+        .then(res => res.json())
+        .then(result => {
+            showResultModal(result);
+        });
+    });
+    
+    function showResultModal(result) {
+        const modal = document.getElementById('result-modal');
+        const content = document.getElementById('result-content');
+        
+        let html = '<div class="space-y-4">';
+        
+        if (result.encryption) {
+            html += `
+                <div class="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-lock text-green-400"></i>
+                        <span class="font-semibold text-green-400">Encrypted with ${result.encryption.algorithm}</span>
+                    </div>
+                    <p class="text-xs text-gray-400 font-mono break-all">Key: ${result.encryption.key.substring(0, 32)}...</p>
+                </div>
+            `;
+        }
+        
+        if (result.signature) {
+            html += `
+                <div class="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-signature text-blue-400"></i>
+                        <span class="font-semibold text-blue-400">Signed with ${result.signature.algorithm}</span>
+                    </div>
+                    <p class="text-xs text-gray-400 font-mono break-all">Signature: ${result.signature.signature.substring(0, 32)}...</p>
+                </div>
+            `;
+        }
+        
+        if (result.selfDestruct && result.selfDestruct.enabled) {
+            html += `
+                <div class="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-bomb text-red-400"></i>
+                        <span class="font-semibold text-red-400">Self-Destruct Enabled</span>
+                    </div>
+                    <p class="text-sm text-gray-400">Expires: ${new Date(result.selfDestruct.expiresAt).toLocaleString()}</p>
+                </div>
+            `;
+        }
+        
+        if (result.sensitiveData && result.sensitiveData.length > 0) {
+            html += `
+                <div class="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                        <span class="font-semibold text-yellow-400">Sensitive Data Protected</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        ${result.sensitiveData.map(d => `<span class="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">${d.type}</span>`).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        
+        content.innerHTML = html;
+        modal.classList.remove('hidden');
+    }
+    
+    function closeResultModal() {
+        document.getElementById('result-modal').classList.add('hidden');
+    }
+</script>
+{% endblock %}

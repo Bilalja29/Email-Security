@@ -1,0 +1,64 @@
+<aside class="fixed left-0 top-0 h-screen w-64 bg-cyber-darker border-r border-cyber-border flex flex-col z-40">
+    <!-- Logo -->
+    <div class="p-4 border-b border-cyber-border">
+        <a href="{{ url_for('dashboard') }}" class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center cyber-glow">
+                <i class="fas fa-shield-halved text-white"></i>
+            </div>
+            <span class="text-lg font-bold">SecureMail</span>
+        </a>
+    </div>
+    
+    <!-- Navigation -->
+    <nav class="flex-1 p-4 space-y-1">
+        <a href="{{ url_for('dashboard') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'dashboard' }}">
+            <i class="fas fa-chart-pie w-5"></i>
+            <span>Dashboard</span>
+        </a>
+        
+        <a href="{{ url_for('inbox') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'inbox' }}">
+            <i class="fas fa-inbox w-5"></i>
+            <span>Inbox</span>
+        </a>
+        
+        <a href="{{ url_for('compose') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'compose' }}">
+            <i class="fas fa-pen-to-square w-5"></i>
+            <span>Compose</span>
+        </a>
+        
+        <a href="{{ url_for('quarantine') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'quarantine' }}">
+            <i class="fas fa-radiation w-5"></i>
+            <span>Quarantine</span>
+            <span class="ml-auto px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 text-xs">6</span>
+        </a>
+        
+        <a href="{{ url_for('alerts') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'alerts' }}">
+            <i class="fas fa-bell w-5"></i>
+            <span>Alerts</span>
+        </a>
+        
+        <div class="pt-4 mt-4 border-t border-cyber-border">
+            <a href="{{ url_for('settings') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'settings' }}">
+                <i class="fas fa-cog w-5"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+    </nav>
+    
+    <!-- User Section -->
+    <div class="p-4 border-t border-cyber-border">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-medium">
+                {{ current_user.email[0].upper() if current_user.is_authenticated else 'D' }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-medium truncate">{{ current_user.email if current_user.is_authenticated else 'Demo User' }}</div>
+                <div class="text-xs text-gray-400">Demo Mode</div>
+            </div>
+        </div>
+        <a href="{{ url_for('logout') }}" class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-cyber-border hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400 transition-all text-sm">
+            <i class="fas fa-sign-out-alt"></i>
+            <span>Logout</span>
+        </a>
+    </div>
+</aside>

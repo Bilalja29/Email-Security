@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Email Security Tool - Home{% endblock %}
+
+{% block content %}
+<div class="min-h-screen">
+    <!-- Navigation -->
+    <nav class="border-b border-cyber-border bg-cyber-darker/80 backdrop-blur-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center cyber-glow">
+                        <i class="fas fa-shield-halved text-white text-lg"></i>
+                    </div>
+                    <span class="text-xl font-bold cyber-glow-text">SecureMail</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <a href="{{ url_for('login') }}" class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-medium cyber-glow">
+                        Start Scanning
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative py-20 lg:py-32 overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-b from-purple-900/20 to-transparent"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="text-center">
+                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/30 mb-6">
+                    <i class="fas fa-lock text-purple-400"></i>
+                    <span class="text-purple-300 text-sm font-medium">Final Year Project - Cybersecurity</span>
+                </div>
+                <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold mb-6">
+                    <span class="bg-gradient-to-r from-white via-purple-200 to-purple-400 bg-clip-text text-transparent">
+                        Lightweight Email
+                    </span>
+                    <br>
+                    <span class="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                        Security Tool
+                    </span>
+                </h1>
+                <p class="text-xl text-gray-400 max-w-3xl mx-auto mb-10">
+                    Advanced threat detection, sandbox analysis, and encryption for your emails. 
+                    Protect against phishing, malware, and data breaches with AI-powered security.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="{{ url_for('login') }}" class="px-8 py-4 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-semibold text-lg cyber-glow flex items-center justify-center gap-2">
+                        <i class="fas fa-play"></i>
+                        Start Scanning
+                    </a>
+                    <a href="#features" class="px-8 py-4 rounded-lg border border-purple-500/50 hover:bg-purple-500/10 transition-all font-semibold text-lg flex items-center justify-center gap-2">
+                        <i class="fas fa-info-circle"></i>
+                        Learn More
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Animated Background Elements -->
+        <div class="absolute top-20 left-10 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-20 right-10 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl"></div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="py-16 border-y border-cyber-border bg-cyber-card/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-purple-400 mb-2">99.9%</div>
+                    <div class="text-gray-400">Threat Detection</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-green-400 mb-2">< 5s</div>
+                    <div class="text-gray-400">Analysis Time</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-blue-400 mb-2">AES-256</div>
+                    <div class="text-gray-400">Encryption</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold text-pink-400 mb-2">RSA-2048</div>
+                    <div class="text-gray-400">Digital Signature</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="py-20">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Core Features</h2>
+                <p class="text-gray-400 max-w-2xl mx-auto">
+                    Comprehensive email security with advanced threat detection and protection mechanisms
+                </p>
+            </div>
+            
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Feature 1 -->
+                <div class="p-6 rounded-xl bg-cyber-card border border-cyber-border card-hover">
+                    <div class="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center mb-4">
+                        <i class="fas fa-envelope-open-text text-purple-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">IMAP Integration</h3>
+                    <p class="text-gray-400">Connect to Gmail, Outlook, Yahoo and scan emails in real-time with secure IMAP protocol.</p>
+                </div>
+                
+                <!-- Feature 2 -->
+                <div class="p-6 rounded-xl bg-cyber-card border border-cyber-border card-hover">
+                    <div class="w-12 h-12 rounded-lg bg-red-500/20 flex items-center justify-center mb-4">
+                        <i class="fas fa-fish text-red-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Phishing Detection</h3>
+                    <p class="text-gray-400">Advanced heuristic analysis to detect phishing attempts, spoofed domains, and social engineering.</p>
+                </div>
+                
+                <!-- Feature 3 -->
+                <div class="p-6 rounded-xl bg-cyber-card border border-cyber-border card-hover">
+                    <div class="w-12 h-12 rounded-lg bg-orange-500/20 flex items-center justify-center mb-4">
+                        <i class="fas fa-virus text-orange-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Sandbox Analysis</h3>
+                    <p class="text-gray-400">Isolated environment to safely analyze suspicious attachments for malware behavior.</p>
+                </div>
+                
+                <!-- Feature 4 -->
+                <div class="p-6 rounded-xl bg-cyber-card border border-cyber-border card-hover">
+                    <div class="w-12 h-12 rounded-lg bg-green-500/20 flex items-center justify-center mb-4">
+                        <i class="fas fa-lock text-green-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">AES-256 Encryption</h3>
+                    <p class="text-gray-400">Military-grade encryption for sensitive emails with automatic key management.</p>
+                </div>
+                
+                <!-- Feature 5 -->
+                <div class="p-6 rounded-xl bg-cyber-card border border-cyber-border card-hover">
+                    <div class="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center mb-4">
+                        <i class="fas fa-signature text-blue-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Digital Signatures</h3>
+                    <p class="text-gray-400">RSA-2048 digital signatures to verify email authenticity and integrity.</p>
+                </div>
+                
+                <!-- Feature 6 -->
+                <div class="p-6 rounded-xl bg-cyber-card border border-cyber-border card-hover">
+                    <div class="w-12 h-12 rounded-lg bg-pink-500/20 flex items-center justify-center mb-4">
+                        <i class="fas fa-bell text-pink-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Real-time Alerts</h3>
+                    <p class="text-gray-400">Instant notifications for detected threats with detailed activity logging.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section class="py-20 bg-cyber-card/30 border-y border-cyber-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Project Team</h2>
+                <p class="text-gray-400">Final Year Project - Department of Cybersecurity</p>
+            </div>
+            
+            <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                <div class="text-center p-6 rounded-xl bg-cyber-dark border border-cyber-border">
+                    <div class="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mx-auto mb-4 flex items-center justify-center text-2xl font-bold">
+                        A
+                    </div>
+                    <h3 class="text-lg font-semibold">Masab Qayyum</h3>
+                    <p class="text-gray-400 text-sm">Team Lead</p>
+                    <p class="text-purple-400 text-xs mt-1">Roll# 46472</p>
+                </div>
+                
+                <div class="text-center p-6 rounded-xl bg-cyber-dark border border-cyber-border">
+                    <div class="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 mx-auto mb-4 flex items-center justify-center text-2xl font-bold">
+                        S
+                    </div>
+                    <h3 class="text-lg font-semibold">Bilal Ahmed</h3>
+                    <p class="text-gray-400 text-sm">Team member</p>
+                    <p class="text-purple-400 text-xs mt-1">Roll# 46473</p>
+                </div>
+                
+                <div class="text-center p-6 rounded-xl bg-cyber-dark border border-cyber-border">
+                    <div class="w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mx-auto mb-4 flex items-center justify-center text-2xl font-bold">
+                        M
+                    </div>
+                    <h3 class="text-lg font-semibold">Huzaifa Naveed</h3>
+                    <p class="text-gray-400 text-sm">Team member</p>
+                    <p class="text-purple-400 text-xs mt-1">Roll# 43974</p>
+                </div>
+            </div>
+            
+            <div class="text-center mt-12">
+                <p class="text-gray-400">Supervised by: <span class="text-white font-medium">Mr. Awais Nawaz</span></p>
+                <p class="text-gray-500 text-sm mt-1">Department of Computer Science - Riphah International University</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div class="p-8 md:p-12 rounded-2xl bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/30">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Ready to Secure Your Emails?</h2>
+                <p class="text-gray-300 mb-8">Start scanning your inbox for threats with our advanced security tool.</p>
+                <a href="{{ url_for('login') }}" class="inline-flex items-center gap-2 px-8 py-4 rounded-lg bg-white text-purple-900 font-semibold hover:bg-gray-100 transition-all">
+                    <i class="fas fa-rocket"></i>
+                    Launch Demo
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-8 border-t border-cyber-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-shield-halved text-purple-400"></i>
+                    <span class="font-semibold">SecureMail</span>
+                </div>
+                <p class="text-gray-400 text-sm">
+                    Final Year Project 2026 - All Rights Reserved
+                </p>
+            </div>
+        </div>
+    </footer>
+</div>
+{% endblock %}
