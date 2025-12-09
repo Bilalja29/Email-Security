@@ -325,11 +325,11 @@ MOCK_EMAILS = [
         "from": "docs@google.com",
         "fromName": "Google Docs",
         "to": "user@example.com",
-        "subject": "Sarah shared a document with you: Q4 Report",
-        "body": """<p>sarah.johnson@company.com shared a document with you:</p>
+        "subject": "Bilal shared a document with you: Q4 Report",
+        "body": """<p>46473@students.riphah.edu.pk shared a document with you:</p>
         <p><strong>Q4 Financial Report 2023</strong></p>
         <p>Click to open: <a href="https://docs.google.com/document/d/abc123">Open in Google Docs</a></p>
-        <p>Note from Sarah: "Please review before tomorrow's meeting"</p>
+        <p>Note from Bilal: "Please review before tomorrow's meeting"</p>
         <p>Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043</p>""",
         "date": "2024-01-09T11:00:00",
         "attachments": [],

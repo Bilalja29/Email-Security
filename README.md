@@ -101,9 +101,9 @@ The application includes 15 pre-loaded mock emails with various threat levels:
 
 ## Team
 
-- Ahmed Khan (Team Lead) - Roll# 2021-CS-001
-- Sara Ali (Security Analyst) - Roll# 2021-CS-002
-- Muhammad Hassan (Developer) - Roll# 2021-CS-003
+- Masab Qayyum (Team Lead) - Roll# 46472
+- Bilal Ahmed (Team Member) - Roll# 46473
+- Huzaifa Naveed (Team Member) - Roll# 43974
 
 **Supervisor**: Dr. Fatima Zahra
 
