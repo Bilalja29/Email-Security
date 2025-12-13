@@ -105,7 +105,7 @@ The application includes 15 pre-loaded mock emails with various threat levels:
 - Bilal Ahmed (Team Member) - Roll# 46473
 - Huzaifa Naveed (Team Member) - Roll# 43974
 
-**Supervisor**: Mr. Awais Nawaz
+**Supervisor**: Mr Awais Nawaz
 
 ## License
 
