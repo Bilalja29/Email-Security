@@ -68,25 +68,34 @@ export default function ComposePage() {
 
     setIsSending(true)
 
-    // Simulate sending
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, body, enableEncryption, enableSignature }),
+      })
 
-    toast({
-      title: "Email Sent Securely",
-      description: enableEncryption
-        ? "Your encrypted email has been sent successfully."
-        : "Your email has been sent successfully.",
-    })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Send failed')
 
-    // Reset form
-    setTo("")
-    setSubject("")
-    setBody("")
-    setEnableEncryption(false)
-    setEnableSignature(false)
-    setSelfDestruct("")
-    setEncryptionResult(null)
-    setIsSending(false)
+      toast({
+        title: 'Email Sent Securely',
+        description: data.previewUrl ? `Preview: ${data.previewUrl}` : 'Email sent (dev).',
+      })
+
+      // Reset form
+      setTo("")
+      setSubject("")
+      setBody("")
+      setEnableEncryption(false)
+      setEnableSignature(false)
+      setSelfDestruct("")
+      setEncryptionResult(null)
+    } catch (err: any) {
+      toast({ title: 'Send Failed', description: err?.message || 'Unable to send', variant: 'destructive' })
+    } finally {
+      setIsSending(false)
+    }
   }
 
   const copyToClipboard = (text: string) => {

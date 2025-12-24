@@ -1,0 +1,12 @@
+# Local env files
+.env.local
+.env.*
+
+# Data stored by demo server
+/data
+
+# Next build
+.next
+
+# node modules
+node_modules

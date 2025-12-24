@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,13 +15,24 @@ import { useToast } from "@/hooks/use-toast"
 import { Settings, Mail, Shield, Key, Bell, Trash2, Plus, CheckCircle2, Server, Lock } from "lucide-react"
 
 export default function SettingsPage() {
-  const { imapConfig, logout } = useAppStore()
+  const { imapConfig, logout, login } = useAppStore()
   const { toast } = useToast()
 
+  // Settings states
   const [autoQuarantine, setAutoQuarantine] = useState(true)
   const [realTimeScanning, setRealTimeScanning] = useState(true)
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [pushNotifications, setPushNotifications] = useState(false)
+
+  // IMAP manager states
+  const [showAdd, setShowAdd] = useState(false)
+  const [host, setHost] = useState("")
+  const [port, setPort] = useState("993")
+  const [emailAddr, setEmailAddr] = useState("")
+  const [password, setPassword] = useState("")
+  const [name, setName] = useState("")
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
 
   const handleSaveSettings = () => {
     toast({
@@ -36,6 +47,76 @@ export default function SettingsPage() {
       description: "New RSA-2048 key pair has been generated.",
     })
   }
+
+  async function loadAccounts() {
+    setLoadingAccounts(true)
+    try {
+      const res = await fetch('/api/imap')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed to load')
+      setAccounts(data.configs || [])
+    } catch (e: any) {
+      toast({ title: 'Load Failed', description: e?.message || 'Unable to load accounts', variant: 'destructive' })
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }
+
+  async function handleAddAccount() {
+    if (!host || !port || !emailAddr || !password) {
+      toast({ title: 'Missing Fields', description: 'Fill all required fields', variant: 'destructive' })
+      return
+    }
+
+    try {
+      const res = await fetch('/api/imap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port: Number(port), email: emailAddr, password, name }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Add failed')
+      setAccounts((prev) => [data.item, ...prev])
+
+      // Set as active
+      login({ host, port: Number(port), email: emailAddr, password })
+
+      toast({ title: 'Account Added', description: 'IMAP account saved and connected.' })
+
+      // reset form
+      setHost('')
+      setPort('993')
+      setEmailAddr('')
+      setPassword('')
+      setName('')
+      setShowAdd(false)
+    } catch (e: any) {
+      toast({ title: 'Add Failed', description: e?.message || 'Could not add account', variant: 'destructive' })
+    }
+  }
+
+  async function connectAndSet(acc: any) {
+    login({ host: acc.host, port: Number(acc.port), email: acc.email, password: acc.password })
+    toast({ title: 'Connected', description: `Using ${acc.email}` })
+  }
+
+  async function deleteAccount(id: string) {
+    if (!confirm('Delete this saved account?')) return
+    try {
+      const res = await fetch(`/api/imap?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Delete failed')
+      setAccounts((prev) => prev.filter((a) => a.id !== id))
+      toast({ title: 'Deleted', description: 'Account removed' })
+    } catch (e: any) {
+      toast({ title: 'Delete Failed', description: e?.message || 'Unable to delete', variant: 'destructive' })
+    }
+  }
+
+  // Load accounts on mount
+  useEffect(() => {
+    loadAccounts()
+  }, [])
 
   return (
     <div className="flex h-screen bg-background">
@@ -91,10 +172,62 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <Button variant="outline" className="w-full bg-transparent">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Another Account
-                </Button>
+                <div>
+                  <div className="flex gap-2 mb-4">
+                    <Button variant="outline" className="bg-transparent" onClick={() => setShowAdd(!showAdd)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Another Account
+                    </Button>
+                    <Button variant="ghost" onClick={loadAccounts}>
+                      Refresh Accounts
+                    </Button>
+                  </div>
+
+                  {showAdd && (
+                    <div className="space-y-3 mb-4">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="IMAP Host" value={host} onChange={(e) => setHost(e.target.value)} />
+                        <Input placeholder="Port" value={port} onChange={(e) => setPort(e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="Email" value={emailAddr} onChange={(e) => setEmailAddr(e.target.value)} />
+                        <Input placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      </div>
+                      <Input placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+                      <div className="flex gap-2">
+                        <Button className="glow-purple" onClick={handleAddAccount}>
+                          Add Account
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowAdd(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {accounts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No saved accounts</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {accounts.map((acc) => (
+                        <div key={acc.id} className="flex items-center justify-between p-3 bg-muted rounded">
+                          <div>
+                            <div className="font-medium">{acc.email} <span className="text-xs text-muted-foreground">({acc.host}:{acc.port})</span></div>
+                            <div className="text-xs text-muted-foreground">{acc.name}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={() => connectAndSet(acc)}>
+                              Connect
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => deleteAccount(acc.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
