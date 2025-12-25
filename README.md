@@ -110,3 +110,26 @@ The application includes 15 pre-loaded mock emails with various threat levels:
 ## License
 
 This project is for educational purposes only.
+
+---
+
+## Dev: API endpoints (send email & store IMAP credentials) 🔧
+
+A simple server-side API is included (Next.js server functions) to demonstrate sending email (dev) and securely storing IMAP configs encrypted with a MASTER_KEY.
+
+- Set environment variables in `.env.local` (you can copy `.env.example`):
+  - `MASTER_KEY` — required (use `openssl rand -hex 32` to generate)
+  - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` — optional; if not provided, nodemailer will use an Ethereal test account and return a preview URL
+
+- Endpoints:
+  - `POST /api/send-email`  — body: `{ to, subject, body, enableEncryption?, enableSignature? }`, returns `previewUrl` when using Ethereal
+  - `GET  /api/imap`        — list saved IMAP configs (decrypted)
+  - `POST /api/imap`        — save IMAP config: `{ host, port, email, password, name? }` (encrypted on disk)
+  - `DELETE /api/imap?id=ID` — delete a saved config
+
+- Stored configs are encrypted and saved in `/data/imap-store.json` (ignored by git). This is for local dev and demo only — do not use for production secrets.
+
+To test locally:
+1. Copy `.env.example` to `.env.local` and set `MASTER_KEY`.
+2. Run `pnpm install` (or `npm install` / `pnpm i`) and `pnpm dev`.
+3. Use the Compose page to send an email — if SMTP isn't configured you'll get a dev preview URL in the API response.

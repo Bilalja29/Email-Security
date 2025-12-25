@@ -26,10 +26,22 @@
             <span>Compose</span>
         </a>
         
-        <a href="{{ url_for('quarantine') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'quarantine' }}">
-            <i class="fas fa-radiation w-5"></i>
-            <span>Quarantine</span>
-            <span class="ml-auto px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 text-xs">6</span>
+        <a href="{{ url_for('quarantine') }}" class="p-4 rounded-xl bg-cyber-card border border-cyber-border hover:border-purple-500/50 transition-all flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+            <i class="fas fa-radiation text-yellow-400"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-medium">Quarantine</div>
+            <div class="text-xs text-gray-400">
+              {% set quarantined_count = emails|selectattr('isQuarantined', 'true')|list|length %}
+              {{ quarantined_count }} isolated
+            </div>
+          </div>
+          {% if quarantined_count > 0 %}
+            <span class="ml-auto bg-destructive text-destructive-foreground text-xs px-2 py-0.5 rounded-full">
+              {{ quarantined_count }}
+            </span>
+          {% endif %}
         </a>
         
         <a href="{{ url_for('alerts') }}" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:text-white {{ 'active' if request.endpoint == 'alerts' }}">
@@ -53,7 +65,7 @@
             </div>
             <div class="flex-1 min-w-0">
                 <div class="font-medium truncate">{{ current_user.email if current_user.is_authenticated else 'Demo User' }}</div>
-                <div class="text-xs text-gray-400">Demo Mode</div>
+                <p class="text-xs text-green-400 font-medium">Live Connection</p>
             </div>
         </div>
         <a href="{{ url_for('logout') }}" class="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-cyber-border hover:bg-red-500/10 hover:border-red-500/50 hover:text-red-400 transition-all text-sm">

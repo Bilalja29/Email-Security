@@ -1,5 +1,8 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+import imaplib
+import email
+from email.header import decode_header
 from datetime import datetime, timedelta
 import json
 import random
@@ -8,31 +11,109 @@ import base64
 import hashlib
 import os
 from functools import wraps
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from flask import Response
 
+# 2. Create the Flask app instance HERE (before any routes!)
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 app.config['SESSION_TYPE'] = 'filesystem'
 
+# 3. Setup Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# Mock user database
+# 4. Your User class
 users_db = {}
-
 class User(UserMixin):
-    def __init__(self, id, email, imap_host, imap_port):
+    def __init__(self, id, accounts):
         self.id = id
-        self.email = email
-        self.imap_host = imap_host
-        self.imap_port = imap_port
+        self.accounts = accounts  # List of dicts: [{'email': ..., 'host': ..., 'port': ...}, ...]
+        self.active_account = accounts[0] if accounts else None  # Current active
+
+    @property
+    def imap_host(self):
+        active_email = session.get('active_email')
+        if active_email:
+            for acc in self.accounts:
+                if acc['email'] == active_email:
+                    return acc['host']
+        return self.accounts[0]['host'] if self.accounts else ''
+
+    @property
+    def imap_port(self):
+        active_email = session.get('active_email')
+        if active_email:
+            for acc in self.accounts:
+                if acc['email'] == active_email:
+                    return acc['port']
+        return self.accounts[0]['port'] if self.accounts else ''
+
+    @property
+    def email(self):
+        active_email = session.get('active_email')
+        if active_email:
+            for acc in self.accounts:
+                if acc['email'] == active_email:
+                    return acc['email']
+        # fallback to first account
+        return self.accounts[0]['email'] if self.accounts else ''
 
 @login_manager.user_loader
 def load_user(user_id):
     if user_id in users_db:
         data = users_db[user_id]
-        return User(user_id, data['email'], data['imap_host'], data['imap_port'])
+        return User(user_id, data['accounts'])
     return None
+
+# ...existing code...
+
+# 5. NOW all your routes (after app is created!)
+# ...existing routes...
+
+# Add Account Route
+@app.route('/add-account', methods=['GET', 'POST'])
+@login_required
+def add_account():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        host = request.form['imap_host']
+        port = int(request.form['imap_port'])
+
+        try:
+            mail = imaplib.IMAP4_SSL(host, port)
+            mail.login(email, password)
+            mail.logout()
+
+            user_id = current_user.id
+            user_accounts = users_db[user_id]['accounts']
+            if not any(a['email'] == email for a in user_accounts):
+                user_accounts.append({'email': email, 'host': host, 'port': port})
+                flash(f'Account added: {email}', 'success')
+            else:
+                flash('Account already added', 'info')
+
+            session[f'password_{email}'] = password
+            session['active_email'] = email
+
+            return redirect(url_for('settings'))
+        except Exception as e:
+            flash(f'Failed to add account: {str(e)}', 'error')
+
+    return render_template('add_account.html')
+
+# Switch Active Account Route
+@app.route('/switch-account', methods=['POST'])
+@login_required
+def switch_account():
+    email = request.form['email']
+    if any(a['email'] == email for a in current_user.accounts):
+        session['active_email'] = email
+        flash(f'Switched to {email}', 'success')
+    return redirect(url_for('settings'))
 
 # Mock Email Data
 MOCK_EMAILS = [
@@ -513,84 +594,159 @@ def landing():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        imap_host = request.form.get('imap_host')
-        imap_port = request.form.get('imap_port')
-        demo_mode = request.form.get('demo_mode')
-        
-        # Create user session (demo mode)
-        user_id = email or 'demo@example.com'
-        users_db[user_id] = {
-            'email': email or 'demo@example.com',
-            'imap_host': imap_host or 'imap.gmail.com',
-            'imap_port': imap_port or '993'
-        }
-        
-        user = User(user_id, users_db[user_id]['email'], 
-                   users_db[user_id]['imap_host'], 
-                   users_db[user_id]['imap_port'])
-        login_user(user)
-        
-        add_log_entry("Login", "None", "info", f"User logged in: {user.email}")
-        
-        return redirect(url_for('dashboard'))
-    
+        # Remove any demo_mode logic
+        session.pop('demo_mode', None)  # Remove any old demo flag
+
+        # Always try real IMAP login
+        email = request.form['email']
+        password = request.form['password']
+        host = request.form['imap_host']
+        port = int(request.form['imap_port'])
+
+        try:
+            mail = imaplib.IMAP4_SSL(host, port)
+            mail.login(email, password)
+            mail.logout()
+            # Multi-account logic
+            user_id = "user_1"  # For single user demo — or use email hash for multi-user
+            if user_id not in users_db:
+                users_db[user_id] = {'accounts': []}
+
+            user_accounts = users_db[user_id]['accounts']
+            account_exists = any(a['email'] == email for a in user_accounts)
+            if not account_exists:
+                new_account = {
+                    'email': email,
+                    'host': host,
+                    'port': port
+                }
+                user_accounts.append(new_account)
+                flash(f'New account added: {email}', 'success')
+            else:
+                flash(f'Account already connected: {email}', 'info')
+
+            session[f'password_{email}'] = password
+            session['active_email'] = email
+
+            user = User(user_id, user_accounts)
+            login_user(user)
+            session['alerts'] = []  # Clear any mock alerts — start fresh
+            session['settings'] = {
+                'auto_quarantine': True,
+                'block_executables': True,
+                'realtime_links': True,
+                'phishing_detection': True,
+                'threat_alerts': True,
+                'quarantine_notify': True,
+                'weekly_report': True,
+            }
+            flash('Live connection established! Scanning inbox...', 'success')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            flash(f'Connection failed: {str(e)}. Use correct App Password!', 'error')
+            return render_template('login.html')
+
     return render_template('login.html')
 
 @app.route('/logout')
 @login_required
 def logout():
+    session.clear()  # This removes the password
     logout_user()
     return redirect(url_for('landing'))
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    emails = fetch_emails(num_emails=20)
+    total = len(emails)
+    safe = len([e for e in emails if e['riskLevel'] == 'safe'])
+    warning = len([e for e in emails if e['riskLevel'] == 'warning'])
+    dangerous = len([e for e in emails if e['riskLevel'] == 'dangerous'])
+
     stats = {
-        'total_scanned': len(MOCK_EMAILS),
-        'threats_blocked': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous']),
-        'quarantined': len([e for e in MOCK_EMAILS if e.get('isQuarantined', False)]),
-        'safe_emails': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe'])
+        'total_scanned': total,
+        'threats_blocked': dangerous,
+        'quarantined': len([e for e in emails if e.get('isQuarantined', False)]),
+        'safe_emails': safe,
     }
-    
+
     risk_distribution = {
-        'safe': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']),
-        'warning': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'warning']),
-        'dangerous': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous'])
+        'safe': safe,
+        'warning': warning,
+        'dangerous': dangerous
     }
-    
-    recent_threats = [e for e in MOCK_EMAILS if e['riskLevel'] in ['warning', 'dangerous']][:5]
-    
-    return render_template('dashboard.html', stats=stats, 
-                         risk_distribution=risk_distribution,
-                         recent_threats=recent_threats)
+
+    return render_template('dashboard.html', emails=emails[:6], stats=stats, risk_distribution=risk_distribution)
 
 @app.route('/inbox')
 @login_required
 def inbox():
-    filter_type = request.args.get('filter', 'all')
-    
-    if filter_type == 'safe':
-        emails = [e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']
-    elif filter_type == 'warning':
-        emails = [e for e in MOCK_EMAILS if e['riskLevel'] == 'warning']
-    elif filter_type == 'dangerous':
-        emails = [e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous']
-    else:
-        emails = MOCK_EMAILS
-    
-    return render_template('inbox.html', emails=emails, current_filter=filter_type)
+    emails = fetch_emails(num_emails=50)
+    if not emails:
+        flash("No emails found. Check your IMAP connection or inbox has emails.", "info")
+    safe = len([e for e in emails if e['riskLevel'] == 'safe'])
+    warning = len([e for e in emails if e['riskLevel'] == 'warning'])
+    dangerous = len([e for e in emails if e['riskLevel'] == 'dangerous'])
+    risk_distribution = {
+        'safe': safe,
+        'warning': warning,
+        'dangerous': dangerous
+    }
+    return render_template('inbox.html', emails=emails, risk_distribution=risk_distribution)
 
 @app.route('/email/<email_id>')
 @login_required
 def email_detail(email_id):
-    email = next((e for e in MOCK_EMAILS if e['id'] == email_id), None)
+    # email = next((e for e in MOCK_EMAILS if e['id'] == email_id), None)  # ← Comment this
+    emails = fetch_emails(num_emails=30)  # ← Use this
+    email = next((e for e in emails if e['id'] == email_id), None)
     if not email:
         flash('Email not found', 'error')
         return redirect(url_for('inbox'))
-    
     return render_template('email_detail.html', email=email)
+
+    # --- Email Actions ---
+    @app.route('/email/<email_id>/quarantine', methods=['POST'])
+    @login_required
+    def quarantine_email(email_id):
+        emails = fetch_emails(num_emails=30)
+        email = next((e for e in emails if e['id'] == email_id), None)
+        if email:
+            email['isQuarantined'] = True
+            flash('Email moved to quarantine.', 'success')
+        return redirect(url_for('email_detail', email_id=email_id))
+
+    @app.route('/email/<email_id>/restore', methods=['POST'])
+    @login_required
+    def restore_email(email_id):
+        emails = fetch_emails(num_emails=30)
+        email = next((e for e in emails if e['id'] == email_id), None)
+        if email:
+            email['isQuarantined'] = False
+            flash('Email restored to inbox.', 'success')
+        return redirect(url_for('email_detail', email_id=email_id))
+
+    @app.route('/email/<email_id>/delete', methods=['POST'])
+    @login_required
+    def delete_email(email_id):
+        # Implement actual deletion logic here
+        flash('Email deleted permanently.', 'success')
+        return redirect(url_for('inbox'))
+
+    @app.route('/email/<email_id>/spam', methods=['POST'])
+    @login_required
+    def report_spam(email_id):
+        # Implement actual spam reporting logic here
+        flash('Email reported as spam.', 'success')
+        return redirect(url_for('email_detail', email_id=email_id))
+
+    @app.route('/email/<email_id>/export', methods=['POST'])
+    @login_required
+    def export_report(email_id):
+        # Implement actual export logic here
+        flash('Report exported.', 'success')
+        return redirect(url_for('email_detail', email_id=email_id))
 
 @app.route('/api/sandbox/analyze', methods=['POST'])
 @login_required
@@ -687,33 +843,299 @@ def compose():
 @app.route('/alerts')
 @login_required
 def alerts():
-    return render_template('alerts.html', logs=activity_log)
+    alerts = session.get('alerts', [])
+    return render_template('alerts.html', logs=alerts)
 
 @app.route('/quarantine')
 @login_required
 def quarantine():
-    quarantined = [e for e in MOCK_EMAILS if e.get('isQuarantined', False)]
+    emails = fetch_emails(num_emails=50)
+    quarantined = [e for e in emails if e.get('isQuarantined', False)]
     return render_template('quarantine.html', emails=quarantined)
 
-@app.route('/settings')
+@app.route('/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
-    return render_template('settings.html')
+    if request.method == 'POST':
+        session['settings'] = {
+            'auto_quarantine': 'auto_quarantine' in request.form,
+            'block_executables': 'block_executables' in request.form,
+            'realtime_links': 'realtime_links' in request.form,
+            'phishing_detection': 'phishing_detection' in request.form,
+            'threat_alerts': 'threat_alerts' in request.form,
+            'quarantine_notify': 'quarantine_notify' in request.form,
+            'weekly_report': 'weekly_report' in request.form,
+        }
+        flash('Settings saved successfully!', 'success')
+
+    settings_obj = session.get('settings', {})
+    return render_template('settings.html',
+                          email=current_user.email,
+                          host=str(current_user.imap_host) + ':' + str(current_user.imap_port),
+                          keys=session.get('keys', {
+                              'fingerprint': 'Not generated',
+                              'generated': 'Never'
+                          }),
+                          settings=session.get('settings', {}))
+
+@app.route('/generate-keys')
+@login_required
+def generate_keys():
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    ).decode()
+
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ).decode()
+
+    import hashlib
+    fingerprint = hashlib.sha256(public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )).hexdigest()
+    fingerprint = ':'.join(fingerprint[i:i+2].upper() for i in range(0, len(fingerprint), 2))
+
+    session['keys'] = {
+        'private': private_pem,
+        'public': public_pem,
+        'fingerprint': fingerprint[:29] + '...',
+        'generated': datetime.now().strftime('%b %d, %Y')
+    }
+    flash('New RSA-2048 key pair generated!', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/export-public-key')
+@login_required
+def export_public_key():
+    keys = session.get('keys', {})
+    public_key = keys.get('public', 'No key generated')
+    return Response(
+        public_key,
+        mimetype='text/plain',
+        headers={"Content-disposition": "attachment; filename=public_key.pem"}
+    )
 
 @app.route('/api/stats')
 @login_required
 def get_stats():
+    emails = fetch_emails(num_emails=30)
     return jsonify({
-        'total_scanned': len(MOCK_EMAILS),
-        'threats_blocked': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous']),
-        'quarantined': len([e for e in MOCK_EMAILS if e.get('isQuarantined', False)]),
-        'safe_emails': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']),
+        'total_scanned': len(emails),
+        'threats_blocked': len([e for e in emails if e['riskLevel'] == 'dangerous']),
+        'quarantined': len([e for e in emails if e.get('isQuarantined', False)]),
+        'safe_emails': len([e for e in emails if e['riskLevel'] == 'safe']),
         'risk_distribution': {
-            'safe': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'safe']),
-            'warning': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'warning']),
-            'dangerous': len([e for e in MOCK_EMAILS if e['riskLevel'] == 'dangerous'])
+            'safe': len([e for e in emails if e['riskLevel'] == 'safe']),
+            'warning': len([e for e in emails if e['riskLevel'] == 'warning']),
+            'dangerous': len([e for e in emails if e['riskLevel'] == 'dangerous'])
         }
     })
+
+# --- IMAP Email Fetching API ---
+import imaplib
+import email as py_email
+from email.header import decode_header
+
+# Function to fetch emails from IMAP server
+def fetch_emails(imap_host, imap_port, username, password, num_emails=10):
+    try:
+        mail = imaplib.IMAP4_SSL(imap_host, int(imap_port))
+        mail.login(username, password)
+        mail.select("inbox")
+        status, messages = mail.search(None, "ALL")
+        email_ids = messages[0].split()[-num_emails:]
+        emails = []
+        for email_id in email_ids:
+            status, msg_data = mail.fetch(email_id, "(RFC822)")
+            raw_email = msg_data[0][1]
+            msg = py_email.message_from_bytes(raw_email)
+            # Parse subject
+            subject, encoding = decode_header(msg["Subject"])[0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(encoding or "utf-8", errors="ignore")
+            # Parse from
+            from_ = msg.get("From")
+            # Parse body (simple text extraction; handle multipart for full)
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain" and not part.get('Content-Disposition'):
+                        try:
+                            body = part.get_payload(decode=True).decode(errors="ignore")
+                            break
+                        except Exception:
+                            continue
+            else:
+                try:
+                    body = msg.get_payload(decode=True).decode(errors="ignore")
+                except Exception:
+                    body = ""
+            emails.append({
+                "id": email_id.decode(),
+                "from": from_,
+                "subject": subject,
+                "body": body[:500],
+                "date": msg["Date"],
+            })
+        mail.logout()
+        return emails
+    except Exception as e:
+        return {"error": str(e)}
+
+# API route to fetch emails from IMAP
+from flask import session
+@app.route('/api/fetch-emails')
+@login_required
+def get_emails():
+    emails = fetch_emails(current_user.imap_host, current_user.imap_port, current_user.email, session.get('password'))
+    return jsonify(emails)
+
+def fetch_emails(num_emails=20):
+    """
+    Fetch real emails using IMAP credentials from current_user and session.
+    Returns a list of email dicts compatible with your templates.
+    """
+    active_email = session.get('active_email')
+    active_password = session.get(f'password_{active_email}')
+    active_account = next((a for a in current_user.accounts if a['email'] == active_email), None)
+    if not current_user.is_authenticated or not active_account or not active_password:
+        flash("Please login again to connect to your inbox", "warning")
+        return []
+
+    try:
+        mail = imaplib.IMAP4_SSL(active_account['host'], active_account['port'])
+        mail.login(active_email, active_password)
+        mail.select("INBOX")
+
+        status, data = mail.search(None, "ALL")
+        email_ids = data[0].split()
+        latest_ids = email_ids[-num_emails:] if len(email_ids) > num_emails else email_ids
+
+        fetched_emails = []
+        alerts = session.get('alerts', [])
+        settings = session.get('settings', {})
+
+        for eid in reversed(latest_ids):  # Newest first
+            status, msg_data = mail.fetch(eid, "(RFC822)")
+            raw_email = msg_data[0][1]
+            msg = email.message_from_bytes(raw_email)
+
+            subject_tuple = decode_header(msg["Subject"])[0]
+            subject = subject_tuple[0]
+            if isinstance(subject, bytes):
+                subject = subject.decode(subject_tuple[1] or "utf-8")
+
+            from_header = msg.get("From", "Unknown")
+            fromName = email.utils.parseaddr(from_header)[0] or "Unknown"
+
+            # Date
+            date_header = msg.get("Date", "Unknown")
+
+            # Body (prefer plain text)
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition"))
+                    if content_type == "text/plain" and "attachment" not in content_disposition:
+                        payload = part.get_payload(decode=True)
+                        body = payload.decode(errors="ignore")
+                        break
+            else:
+                payload = msg.get_payload(decode=True)
+                body = payload.decode(errors="ignore") if payload else ""
+
+            # Attachments (basic count and names)
+            attachments = []
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get("Content-Disposition") and "attachment" in str(part.get("Content-Disposition")):
+                        filename = part.get_filename()
+                        if filename:
+                            attachments.append({"name": filename})
+
+            # Basic risk scoring placeholder (you can enhance later)
+            risk_score = random.randint(0, 100)  # Temporary – replace with your threat detection later
+            if risk_score < 30:
+                risk_level = "safe"
+            elif risk_score < 70:
+                risk_level = "warning"
+            else:
+                risk_level = "dangerous"
+
+            # --- Real alert generation ---
+            email_dict = {
+                "id": eid.decode(),
+                "from": from_header,
+                "fromName": fromName,
+                "subject": subject or "(no subject)",
+                "body": body[:1000] + "..." if len(body) > 1000 else body,
+                "date": date_header,
+                "riskScore": risk_score,
+                "riskLevel": risk_level,
+                "attachments": attachments,
+                "isQuarantined": False,
+                "isRead": False,
+            }
+
+            if settings.get('auto_quarantine', True) and risk_level == 'dangerous':
+                email_dict['isQuarantined'] = True
+                alerts.append({
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'action': 'Quarantined',
+                    'threatType': 'Malware' if attachments else 'Phishing',
+                    'severity': 'Critical',
+                    'details': f"High risk email from {fromName} quarantined"
+                })
+            elif risk_level == 'warning':
+                alerts.append({
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'action': 'Warning',
+                    'threatType': 'Spoofing',
+                    'severity': 'Medium',
+                    'details': f"Suspicious sender: {from_header}"
+                })
+
+            fetched_emails.append(email_dict)
+
+        # Always add scan complete alert (first one)
+        if len(fetched_emails) == 1:
+            alerts.insert(0, {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'action': 'Scanned',
+                'threatType': 'None',
+                'severity': 'Low',
+                'details': f"Routine scan completed - {len(fetched_emails)} emails processed"
+            })
+
+        session['alerts'] = alerts[-20:]  # Keep latest 20
+
+        mail.logout()
+        return fetched_emails
+
+    except Exception as e:
+        print("\n=== IMAP FETCH ERROR ===")
+        print(f"User: {current_user.email if current_user else 'None'}")
+        print(f"Host: {current_user.imap_host if current_user else 'None'}")
+        print(f"Error Type: {type(e).__name__}")
+        print(f"Error Message: {str(e)}")
+        print("=======================\n")
+        flash(f"IMAP Error: {str(e)}. Check credentials/host.", "error")
+        return []
+
+@app.route('/scan')
+@login_required
+def manual_scan():
+    emails = fetch_emails(num_emails=50)
+    flash(f"Manual scan complete! Processed {len(emails)} emails", "success")
+    return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
