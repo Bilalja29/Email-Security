@@ -28,8 +28,20 @@ export default function InboxPage() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsRefreshing(false)
+
+    try {
+      const res = await fetch('/api/fetch-emails', { method: 'POST', body: JSON.stringify({ limit: 30 }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch')
+
+      // Replace the store emails with fetched messages
+      // @ts-ignore
+      useAppStore.getState().setEmails(data.messages)
+    } catch (err) {
+      console.error('Fetch failed', err)
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   return (

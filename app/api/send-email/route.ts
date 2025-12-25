@@ -10,6 +10,39 @@ export async function POST(req: Request) {
   }
 
   try {
+<<<<<<< HEAD
+=======
+    // Debug log so we can see incoming requests in server logs
+    // (no secrets printed)
+    console.log('SEND-API HIT', { to: to?.slice(0, 60), subject, hasResend: !!process.env.RESEND_API_KEY, hasSMTP: !!process.env.SMTP_HOST })
+
+    // If Resend API key is provided, use Resend HTTP API for real deliveries
+    if (process.env.RESEND_API_KEY) {
+      const resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: from || process.env.FROM_EMAIL || "securemail@example.com",
+          to,
+          subject,
+          text: messageBody,
+          html: `<pre style="white-space:pre-wrap">${messageBody}</pre>`,
+        }),
+      })
+
+      const data = await resp.json().catch(() => null)
+      if (!resp.ok) {
+        const text = data?.message || JSON.stringify(data) || (await resp.text().catch(() => ""))
+        throw new Error(`Resend error: ${text}`)
+      }
+
+      return NextResponse.json({ message: "Email sent via Resend", result: data })
+    }
+
+>>>>>>> bd64b8e81b6a9b42e879826d71617fabd0515931
     let transporter
     let previewUrl: string | undefined
 
