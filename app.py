@@ -1,3 +1,67 @@
+
+# ...existing code...
+
+# Place this after app = Flask(__name__) and all imports
+
+# ...existing code...
+
+# Place this after app = Flask(__name__) and all imports
+
+# ...existing code...
+
+# Place this after app = Flask(__name__) and all imports
+
+# ...existing code...
+
+# Place this after app = Flask(__name__) and all imports
+
+# --- VirusTotal Integration ---
+from dotenv import load_dotenv
+import requests
+import time
+import os
+
+load_dotenv()
+
+VIRUSTOTAL_API_KEY = os.getenv('VIRUSTOTAL_API_KEY')
+
+def scan_attachment_with_virustotal(file_path, filename):
+    if not VIRUSTOTAL_API_KEY:
+        return {"error": "No API key", "detections": 0, "total": 70}
+
+    # Step 1: Get upload URL (for files >32MB, but most emails <32MB)
+    url = "https://www.virustotal.com/api/v3/files/upload_url"
+    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        return {"error": "Failed to get upload URL", "detections": 0, "total": 70}
+    upload_url = response.json()['data']
+
+    # Step 2: Upload file
+    with open(file_path, "rb") as f:
+        files = {"file": (filename, f)}
+        upload_response = requests.post(upload_url, headers=headers, files=files)
+
+    if upload_response.status_code != 200:
+        return {"error": "Upload failed", "detections": 0, "total": 70}
+
+    analysis_id = upload_response.json()['data']['id']
+
+    # Step 3: Poll for results
+    report_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
+    for _ in range(10):  # Wait up to ~2 minutes
+        time.sleep(12)
+        report_response = requests.get(report_url, headers=headers)
+        if report_response.status_code == 200:
+            data = report_response.json()['data']['attributes']['stats']
+            if report_response.json()['data']['attributes']['status'] == 'completed':
+                return {
+                    "detections": data['malicious'] + data['suspicious'],
+                    "total": data['malicious'] + data['suspicious'] + data['undetected'] + data['harmless'],
+                    "permalink": f"https://www.virustotal.com/gui/file/{upload_response.json()['data']['id']}"
+                }
+
+    return {"error": "Timeout", "detections": 0, "total": 70}
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import imaplib
@@ -99,11 +163,13 @@ def add_account():
             session[f'password_{email}'] = password
             session['active_email'] = email
 
-            return redirect(url_for('settings'))
         except Exception as e:
             flash(f'Failed to add account: {str(e)}', 'error')
 
-    return render_template('add_account.html')
+        return redirect(url_for('settings'))
+
+    # For GET, just redirect to settings (no add_account.html)
+    return redirect(url_for('settings'))
 
 # Switch Active Account Route
 @app.route('/switch-account', methods=['POST'])
@@ -682,18 +748,8 @@ def dashboard():
 @app.route('/inbox')
 @login_required
 def inbox():
-    emails = fetch_emails(num_emails=50)
-    if not emails:
-        flash("No emails found. Check your IMAP connection or inbox has emails.", "info")
-    safe = len([e for e in emails if e['riskLevel'] == 'safe'])
-    warning = len([e for e in emails if e['riskLevel'] == 'warning'])
-    dangerous = len([e for e in emails if e['riskLevel'] == 'dangerous'])
-    risk_distribution = {
-        'safe': safe,
-        'warning': warning,
-        'dangerous': dangerous
-    }
-    return render_template('inbox.html', emails=emails, risk_distribution=risk_distribution)
+    emails = fetch_emails(num_emails=50)  # Auto-fetch
+    return render_template('inbox.html', emails=emails)
 
 @app.route('/email/<email_id>')
 @login_required
@@ -997,137 +1053,113 @@ def get_emails():
     emails = fetch_emails(current_user.imap_host, current_user.imap_port, current_user.email, session.get('password'))
     return jsonify(emails)
 
-def fetch_emails(num_emails=20):
-    """
-    Fetch real emails using IMAP credentials from current_user and session.
-    Returns a list of email dicts compatible with your templates.
-    """
-    active_email = session.get('active_email')
-    active_password = session.get(f'password_{active_email}')
-    active_account = next((a for a in current_user.accounts if a['email'] == active_email), None)
-    if not current_user.is_authenticated or not active_account or not active_password:
-        flash("Please login again to connect to your inbox", "warning")
+def fetch_emails(num_emails=50):
+    if not current_user.is_authenticated:
+        flash("Not authenticated", "error")
         return []
 
+    active_email = getattr(current_user, 'email', None)
+    if not active_email:
+        flash("No active email account", "error")
+        return []
+
+    active_password = session.get(f'password_{active_email}')
+    if not active_password:
+        flash("Password not found — please re-login", "error")
+        return []
+
+    host = getattr(current_user, 'imap_host', 'imap.gmail.com')
+    port = getattr(current_user, 'imap_port', 993)
+
+    print(f"Starting fetch for {active_email}...")
+
     try:
-        mail = imaplib.IMAP4_SSL(active_account['host'], active_account['port'])
+        mail = imaplib.IMAP4_SSL(host, port)
         mail.login(active_email, active_password)
         mail.select("INBOX")
 
         status, data = mail.search(None, "ALL")
+        if status != 'OK' or not data[0]:
+            print("No emails found or search failed")
+            mail.logout()
+            return []
+
         email_ids = data[0].split()
         latest_ids = email_ids[-num_emails:] if len(email_ids) > num_emails else email_ids
 
         fetched_emails = []
-        alerts = session.get('alerts', [])
-        settings = session.get('settings', {})
+        for eid in reversed(latest_ids):
+            try:
+                status, msg_data = mail.fetch(eid, "(RFC822)")
+                if status != 'OK' or not msg_data[0]:
+                    continue
 
-        for eid in reversed(latest_ids):  # Newest first
-            status, msg_data = mail.fetch(eid, "(RFC822)")
-            raw_email = msg_data[0][1]
-            msg = email.message_from_bytes(raw_email)
+                raw_email = msg_data[0][1]
+                msg = email.message_from_bytes(raw_email)
 
-            subject_tuple = decode_header(msg["Subject"])[0]
-            subject = subject_tuple[0]
-            if isinstance(subject, bytes):
-                subject = subject.decode(subject_tuple[1] or "utf-8")
+                # Safe defaults
+                subject = "No Subject"
+                if msg.get("Subject"):
+                    decoded = decode_header(msg["Subject"])[0]
+                    subject_bytes, encoding = decoded[0], decoded[1] if len(decoded) > 1 else None
+                    if isinstance(subject_bytes, bytes):
+                        subject = subject_bytes.decode(encoding or 'utf-8', errors='ignore')
+                    else:
+                        subject = str(subject_bytes)
 
-            from_header = msg.get("From", "Unknown")
-            fromName = email.utils.parseaddr(from_header)[0] or "Unknown"
+                from_header = msg.get("From", "Unknown Sender")
+                date_header = msg.get("Date", "Unknown Date")
 
-            # Date
-            date_header = msg.get("Date", "Unknown")
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == "text/plain":
+                            payload = part.get_payload(decode=True)
+                            if payload:
+                                body = payload.decode(errors='ignore')
+                            break
+                else:
+                    payload = msg.get_payload(decode=True)
+                    if payload:
+                        body = payload.decode(errors='ignore')
 
-            # Body (prefer plain text)
-            body = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    content_type = part.get_content_type()
-                    content_disposition = str(part.get("Content-Disposition"))
-                    if content_type == "text/plain" and "attachment" not in content_disposition:
-                        payload = part.get_payload(decode=True)
-                        body = payload.decode(errors="ignore")
-                        break
-            else:
-                payload = msg.get_payload(decode=True)
-                body = payload.decode(errors="ignore") if payload else ""
-
-            # Attachments (basic count and names)
-            attachments = []
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get("Content-Disposition") and "attachment" in str(part.get("Content-Disposition")):
-                        filename = part.get_filename()
-                        if filename:
-                            attachments.append({"name": filename})
-
-            # Basic risk scoring placeholder (you can enhance later)
-            risk_score = random.randint(0, 100)  # Temporary – replace with your threat detection later
-            if risk_score < 30:
+                # Basic risk scoring
+                risk_score = 10
                 risk_level = "safe"
-            elif risk_score < 70:
-                risk_level = "warning"
-            else:
-                risk_level = "dangerous"
+                lower_body = body.lower() + subject.lower()
+                if any(word in lower_body for word in ["urgent", "payment", "verify", "click here", "password"]):
+                    risk_score = 75
+                    risk_level = "warning"
+                if "exe" in body.lower() or "invoice" in subject.lower():
+                    risk_score = 95
+                    risk_level = "dangerous"
 
-            # --- Real alert generation ---
-            email_dict = {
-                "id": eid.decode(),
-                "from": from_header,
-                "fromName": fromName,
-                "subject": subject or "(no subject)",
-                "body": body[:1000] + "..." if len(body) > 1000 else body,
-                "date": date_header,
-                "riskScore": risk_score,
-                "riskLevel": risk_level,
-                "attachments": attachments,
-                "isQuarantined": False,
-                "isRead": False,
-            }
-
-            if settings.get('auto_quarantine', True) and risk_level == 'dangerous':
-                email_dict['isQuarantined'] = True
-                alerts.append({
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'action': 'Quarantined',
-                    'threatType': 'Malware' if attachments else 'Phishing',
-                    'severity': 'Critical',
-                    'details': f"High risk email from {fromName} quarantined"
-                })
-            elif risk_level == 'warning':
-                alerts.append({
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'action': 'Warning',
-                    'threatType': 'Spoofing',
-                    'severity': 'Medium',
-                    'details': f"Suspicious sender: {from_header}"
+                fetched_emails.append({
+                    "id": eid.decode(),
+                    "from": from_header,
+                    "fromName": email.utils.parseaddr(from_header)[0] or "Unknown",
+                    "subject": subject,
+                    "body": body[:300] + "..." if len(body) > 300 else body,
+                    "date": date_header,
+                    "riskScore": risk_score,
+                    "riskLevel": risk_level,
+                    "attachments": [],  # Add later with VT
+                    "isQuarantined": risk_level == "dangerous" and session.get('settings', {}).get('auto_quarantine', True),
+                    "isRead": False,
                 })
 
-            fetched_emails.append(email_dict)
-
-        # Always add scan complete alert (first one)
-        if len(fetched_emails) == 1:
-            alerts.insert(0, {
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'action': 'Scanned',
-                'threatType': 'None',
-                'severity': 'Low',
-                'details': f"Routine scan completed - {len(fetched_emails)} emails processed"
-            })
-
-        session['alerts'] = alerts[-20:]  # Keep latest 20
+            except Exception as e:
+                print(f"Error parsing email {eid}: {e}")
+                continue
 
         mail.logout()
+        print(f"Fetched {len(fetched_emails)} emails successfully")
+        flash(f"Scan complete! Found {len(fetched_emails)} emails", "success")
         return fetched_emails
 
     except Exception as e:
-        print("\n=== IMAP FETCH ERROR ===")
-        print(f"User: {current_user.email if current_user else 'None'}")
-        print(f"Host: {current_user.imap_host if current_user else 'None'}")
-        print(f"Error Type: {type(e).__name__}")
-        print(f"Error Message: {str(e)}")
-        print("=======================\n")
-        flash(f"IMAP Error: {str(e)}. Check credentials/host.", "error")
+        print(f"IMAP Error: {e}")
+        flash(f"Connection failed: {str(e)}. Try re-login", "error")
         return []
 
 @app.route('/scan')
