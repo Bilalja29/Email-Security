@@ -28,7 +28,8 @@ const severityColors = {
 }
 
 export default function AlertsPage() {
-  const { alerts, clearAlerts } = useAppStore()
+  const alerts = useAppStore((state) => state.alerts)
+  const clearAlerts = useAppStore((state) => state.clearAlerts)
   const [search, setSearch] = useState("")
   const [severityFilter, setSeverityFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")

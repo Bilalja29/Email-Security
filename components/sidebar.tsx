@@ -18,7 +18,8 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const { logout, emails, alerts } = useAppStore()
+  const emails = useAppStore((state) => state.emails)
+  const alerts = useAppStore((state) => state.alerts)
 
   const quarantinedCount = emails.filter((e) => e.isQuarantined).length
   const unreadAlerts = alerts.filter((a) => a.severity === "critical" || a.severity === "high").length

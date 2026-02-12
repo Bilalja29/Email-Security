@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Settings, Mail, Shield, Key, Bell, Trash2, Plus, CheckCircle2, Server, Lock } from "lucide-react"
 
 export default function SettingsPage() {
-  const { imapConfig, logout, login } = useAppStore()
+  const activeImapConfigId = useAppStore((state) => state.activeImapConfigId)
   const { toast } = useToast()
 
   // Settings states
@@ -85,39 +85,41 @@ export default function SettingsPage() {
 
       // reset form
       setHost('')
-      setPort('993')
-      setEmailAddr('')
-      setPassword('')
-      setName('')
-      setShowAdd(false)
-    } catch (e: any) {
-      toast({ title: 'Add Failed', description: e?.message || 'Could not add account', variant: 'destructive' })
-    }
-  }
+        return (
+          <div className="flex h-screen bg-background">
+            <aside className="w-[260px] flex-shrink-0">
+              <Sidebar />
+            </aside>
+            <main className="flex-1 flex flex-col overflow-hidden bg-background">
+              <Header />
+              <section className="flex-1 overflow-auto p-6">
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div>
+                    <h1 className="text-2xl font-bold flex items-center gap-3">
+                      <Settings className="w-7 h-7 text-primary" />
+                      Settings
+                    </h1>
+                    <p className="text-muted-foreground">Manage your account and security preferences</p>
+                  </div>
 
-  async function connectAndSet(acc: any) {
-    login({ host: acc.host, port: Number(acc.port), email: acc.email, password: acc.password })
-    toast({ title: 'Connected', description: `Using ${acc.email}` })
-  }
+                  {/* Connected Accounts */}
+                  <Card className="bg-card border-border">
+                    {/* ...existing code... */}
+                  </Card>
 
-  async function deleteAccount(id: string) {
-    if (!confirm('Delete this saved account?')) return
-    try {
-      const res = await fetch(`/api/imap?id=${id}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Delete failed')
-      setAccounts((prev) => prev.filter((a) => a.id !== id))
-      toast({ title: 'Deleted', description: 'Account removed' })
-    } catch (e: any) {
-      toast({ title: 'Delete Failed', description: e?.message || 'Unable to delete', variant: 'destructive' })
-    }
-  }
+                  {/* Responsive 3-column grid for settings cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* ...existing code... */}
+                  </div>
 
-  // Load accounts on mount
-  useEffect(() => {
-    loadAccounts()
-  }, [])
-
+                  <Button className="w-full glow-purple mt-6" onClick={handleSaveSettings}>
+                    Save All Settings
+                  </Button>
+                </div>
+              </section>
+            </main>
+          </div>
+        )
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -271,71 +273,136 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Encryption Keys */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5" />
-                  Encryption Keys
-                </CardTitle>
-                <CardDescription>Manage your encryption and signing keys</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="p-4 bg-muted rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">RSA-2048 Key Pair</span>
-                    <Badge className="bg-green-500/20 text-green-400">Active</Badge>
+            {/* Responsive 3-column grid for settings cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Security Features & Notifications (combine Security Settings and Features) */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-5 h-5" />
+                    Security Features & Notifications
+                  </CardTitle>
+                  <CardDescription>Configure threat detection and notifications</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Security Settings */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Auto-Quarantine Dangerous Emails</Label>
+                      <p className="text-sm text-muted-foreground">Automatically move high-risk emails to quarantine</p>
+                    </div>
+                    <Switch checked={autoQuarantine} onCheckedChange={setAutoQuarantine} />
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">Used for digital signatures and key exchange</p>
-                  <code className="text-xs bg-background px-2 py-1 rounded block truncate">
-                    Fingerprint: 4A:2B:8C:9D:1E:3F:5G:7H:9I:0J:1K:2L:3M:4N:5O:6P
-                  </code>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleGenerateKeys}>
-                    <Key className="w-4 h-4 mr-2" />
-                    Generate New Keys
-                  </Button>
-                  <Button variant="outline">
-                    <Lock className="w-4 h-4 mr-2" />
-                    Export Public Key
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Notifications */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Notifications
-                </CardTitle>
-                <CardDescription>Configure how you receive alerts</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive threat alerts via email</p>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Real-time Scanning</Label>
+                      <p className="text-sm text-muted-foreground">Scan emails as they arrive in your inbox</p>
+                    </div>
+                    <Switch checked={realTimeScanning} onCheckedChange={setRealTimeScanning} />
                   </div>
-                  <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Push Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Receive browser push notifications</p>
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label>Risk Score Threshold</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Emails above this score will be flagged as dangerous
+                    </p>
+                    <Input type="number" defaultValue="70" className="max-w-[100px]" />
                   </div>
-                  <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
-                </div>
-              </CardContent>
-            </Card>
+                  {/* Features checkboxes (mockup, replace with real state/handlers as needed) */}
+                  <Separator />
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked readOnly className="accent-primary" />
+                      <span className="text-sm">Block executable attachments</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked readOnly className="accent-primary" />
+                      <span className="text-sm">Real-time link analysis</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked readOnly className="accent-primary" />
+                      <span className="text-sm">Phishing detection alerts</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked readOnly className="accent-primary" />
+                      <span className="text-sm">Quarantine notifications</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked readOnly className="accent-primary" />
+                      <span className="text-sm">Weekly security report</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked readOnly className="accent-primary" />
+                      <span className="text-sm">Threat alerts</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Button className="w-full glow-purple" onClick={handleSaveSettings}>
+              {/* Encryption Keys */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key className="w-5 h-5" />
+                    Encryption Keys
+                  </CardTitle>
+                  <CardDescription>Manage your encryption and signing keys</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">RSA-2048 Key Pair</span>
+                      <Badge className="bg-green-500/20 text-green-400">Active</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">Used for digital signatures and key exchange</p>
+                    <code className="text-xs bg-background px-2 py-1 rounded block truncate">
+                      Fingerprint: 4A:2B:8C:9D:1E:3F:5G:7H:9I:0J:1K:2L:3M:4N:5O:6P
+                    </code>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleGenerateKeys}>
+                      <Key className="w-4 h-4 mr-2" />
+                      Generate New Keys
+                    </Button>
+                    <Button variant="outline">
+                      <Lock className="w-4 h-4 mr-2" />
+                      Export Public Key
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Notifications */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="w-5 h-5" />
+                    Notifications
+                  </CardTitle>
+                  <CardDescription>Configure how you receive alerts</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Email Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Receive threat alerts via email</p>
+                    </div>
+                    <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Push Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Receive browser push notifications</p>
+                    </div>
+                    <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Button className="w-full glow-purple mt-6" onClick={handleSaveSettings}>
               Save All Settings
             </Button>
           </div>

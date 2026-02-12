@@ -6,7 +6,8 @@ import { useAppStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function StatsCards() {
-  const { emails, alerts } = useAppStore()
+  const emails = useAppStore((state) => state.emails)
+  const alerts = useAppStore((state) => state.alerts)
 
   const totalEmails = emails.length
   const safeEmails = emails.filter((e) => e.riskLevel === "safe").length

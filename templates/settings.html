@@ -3,103 +3,49 @@
 {% block title %}Settings - Email Security Tool{% endblock %}
 
 {% block content %}
-<div class="flex min-h-screen">
+<div class="flex min-h-screen bg-black">
     {% include 'partials/sidebar.html' %}
-    
+
     <div class="flex-1 ml-64">
         {% include 'partials/header.html' %}
-        
-        <main class="p-6">
+
+        <main class="p-6 bg-black flex-1">
             <h1 class="text-2xl font-bold mb-6">Settings</h1>
-            
+
             <div class="grid lg:grid-cols-2 gap-6">
                 <!-- IMAP Account -->
                 <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
-                                        <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                                                <i class="fas fa-envelope text-purple-400"></i>
-                                                Email Accounts
-                                        </h2>
-                                        <div class="space-y-4">
-                                                {% for acc in current_user.accounts %}
-                                                <div class="p-6 rounded-xl bg-cyber-card border {% if acc.email == session.active_email %}border-green-500/50{% else %}border-cyber-border{% endif %}">
-                                                    <div class="flex items-center justify-between">
-                                                        <div>
-                                                            <p class="font-medium">{{ acc.email }}</p>
-                                                            <p class="text-sm text-gray-400">{{ acc.host }}:{{ acc.port }}</p>
-                                                        </div>
-                                                        <div class="flex items-center gap-3">
-                                                            {% if acc.email == session.active_email %}
-                                                                <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">Active</span>
-                                                            {% else %}
-                                                                <form method="POST" action="{{ url_for('switch_account') }}">
-                                                                    <input type="hidden" name="email" value="{{ acc.email }}">
-                                                                    <button type="submit" class="px-3 py-1 rounded bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 text-xs">
-                                                                        Switch
-                                                                    </button>
-                                                                </form>
-                                                            {% endif %}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {% endfor %}
-                                                                                                <!-- ONLY THIS BUTTON — DELETE ANY OTHER "Add Another Account" BUTTON/FORM -->
-                                                                                                <div class="mt-8 text-center">
-                                                                                                    <button type="button" onclick="document.getElementById('addAccountModal').classList.remove('hidden')" class="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-medium text-lg flex items-center gap-3 mx-auto">
-                                                                                                        <i class="fas fa-plus text-xl"></i>
-                                                                                                        Add Another Account
-                                                                                                    </button>
-                                                                                                </div>
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <i class="fas fa-envelope text-purple-400"></i>
+                        Email Account
+                    </h2>
 
-                                                                                                <!-- Modal with Form -->
-                                                                                                <div id="addAccountModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-                                                                                                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-8 max-w-lg w-full shadow-2xl">
-                                                                                                        <div class="flex items-center justify-between mb-6">
-                                                                                                            <h2 class="text-2xl font-bold">Add New Email Account</h2>
-                                                                                                            <button type="button" onclick="document.getElementById('addAccountModal').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl">
-                                                                                                                &times;
-                                                                                                            </button>
-                                                                                                        </div>
-                                                                                                        <form method="POST" action="{{ url_for('add_account') }}">
-                                                                                                            <div class="space-y-5">
-                                                                                                                <div>
-                                                                                                                    <label class="block text-sm font-medium mb-2">IMAP Host</label>
-                                                                                                                    <input type="text" name="imap_host" value="imap.gmail.com" class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:outline-none" required>
-                                                                                                                </div>
-                                                                                                                <div>
-                                                                                                                    <label class="block text-sm font-medium mb-2">Port</label>
-                                                                                                                    <input type="text" name="imap_port" value="993" class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:outline-none" required>
-                                                                                                                </div>
-                                                                                                                <div>
-                                                                                                                    <label class="block text-sm font-medium mb-2">Email Address</label>
-                                                                                                                    <input type="email" name="email" placeholder="new@gmail.com" class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:outline-none" required>
-                                                                                                                </div>
-                                                                                                                <div>
-                                                                                                                    <label class="block text-sm font-medium mb-2">Password / App Password</label>
-                                                                                                                    <input type="password" name="password" class="w-full px-4 py-3 rounded-lg bg-cyber-dark border border-cyber-border focus:border-purple-500 focus:outline-none" required>
-                                                                                                                    <p class="text-xs text-gray-400 mt-2">For Gmail, generate an App Password at myaccount.google.com/apppasswords</p>
-                                                                                                                </div>
-                                                                                                                <div class="flex gap-4 pt-6">
-                                                                                                                    <button type="submit" class="flex-1 px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 font-medium hover:from-purple-500 hover:to-purple-700 transition-all">
-                                                                                                                        Connect Account
-                                                                                                                    </button>
-                                                                                                                    <button type="button" onclick="document.getElementById('addAccountModal').classList.add('hidden')" class="flex-1 px-6 py-3 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all">
-                                                                                                                        Cancel
-                                                                                                                    </button>
-                                                                                                                </div>
-                                                                                                            </div>
-                                                                                                        </form>
-                                                                                                    </div>
-                                                                                                </div>
-                                        </div>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark">
+                            <div>
+                                <p class="font-medium">{{ current_user.email if current_user.is_authenticated else '' }}
+                                </p>
+                                <p class="text-sm text-gray-400">{{ current_user.imap_host if
+                                    current_user.is_authenticated else 'imap.gmail.com' }}:{{ current_user.imap_port if
+                                    current_user.is_authenticated else '993' }}</p>
+                            </div>
+                            <span class="px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-sm">Connected</span>
+                        </div>
+
+                        <button
+                            class="w-full py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all">
+                            <i class="fas fa-plus mr-2"></i> Add Another Account
+                        </button>
+                    </div>
                 </div>
-                
+
                 <!-- Encryption Keys -->
                 <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                         <i class="fas fa-key text-yellow-400"></i>
                         Encryption Keys
                     </h2>
-                    
+
                     <div class="space-y-4">
                         <div class="p-4 rounded-lg bg-cyber-dark">
                             <div class="flex items-center justify-between mb-2">
@@ -109,93 +55,89 @@
                             <p class="text-xs text-gray-400 font-mono">Fingerprint: 4A:2B:8C:D1:E5:F6:...</p>
                             <p class="text-xs text-gray-500 mt-1">Generated: Jan 15, 2024</p>
                         </div>
-                        
+
                         <div class="flex gap-2">
-                            <a href="{{ url_for('generate_keys') }}" class="flex-1 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all text-sm">
+                            <button
+                                class="flex-1 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all text-sm">
                                 <i class="fas fa-sync mr-1"></i> Regenerate
-                            </a>
-                            <a href="{{ url_for('export_public_key') }}" class="flex-1 py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all text-sm">
+                            </button>
+                            <button
+                                class="flex-1 py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all text-sm">
                                 <i class="fas fa-download mr-1"></i> Export Public Key
-                            </a>
+                            </button>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Security Preferences -->
                 <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                         <i class="fas fa-shield-halved text-blue-400"></i>
                         Security Preferences
                     </h2>
-                    
-                    <form method="POST" class="space-y-4">
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Auto-quarantine dangerous emails</span>
-                        <input type="checkbox" name="auto_quarantine" {{ 'checked' if settings.auto_quarantine else '' }} class="form-checkbox">
-                      </label>
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Block executable attachments</span>
-                        <input type="checkbox" name="block_executables" {{ 'checked' if settings.block_executables else '' }} class="form-checkbox">
-                      </label>
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Real-time link analysis</span>
-                        <input type="checkbox" name="realtime_links" {{ 'checked' if settings.realtime_links else '' }} class="form-checkbox">
-                      </label>
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Phishing detection</span>
-                        <input type="checkbox" name="phishing_detection" {{ 'checked' if settings.phishing_detection else '' }} class="form-checkbox">
-                      </label>
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Threat alerts</span>
-                        <input type="checkbox" name="threat_alerts" {{ 'checked' if settings.threat_alerts else '' }} class="form-checkbox">
-                      </label>
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Quarantine notifications</span>
-                        <input type="checkbox" name="quarantine_notify" {{ 'checked' if settings.quarantine_notify else '' }} class="form-checkbox">
-                      </label>
-                      <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
-                        <span>Weekly report</span>
-                        <input type="checkbox" name="weekly_report" {{ 'checked' if settings.weekly_report else '' }} class="form-checkbox">
-                      </label>
-                      <div class="mt-6 flex justify-end">
-                        <button type="submit" class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 font-medium">
-                          Save Changes
-                        </button>
-                      </div>
-                    </form>
+
+                    <div class="space-y-4">
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Auto-quarantine dangerous emails</span>
+                            <input type="checkbox" checked
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Block executable attachments</span>
+                            <input type="checkbox" checked
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Scan links in real-time</span>
+                            <input type="checkbox" checked
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+
+                        <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
+                            <span>Enable phishing detection</span>
+                            <input type="checkbox" checked
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                        </label>
+                    </div>
                 </div>
-                
+
                 <!-- Notifications -->
                 <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
                     <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
                         <i class="fas fa-bell text-red-400"></i>
                         Notifications
                     </h2>
-                    
+
                     <div class="space-y-4">
                         <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
                             <span>Threat alerts</span>
-                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                            <input type="checkbox" checked
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
                         </label>
-                        
+
                         <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
                             <span>Quarantine notifications</span>
-                            <input type="checkbox" checked class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                            <input type="checkbox" checked
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
                         </label>
-                        
+
                         <label class="flex items-center justify-between p-3 rounded-lg bg-cyber-dark">
                             <span>Weekly security report</span>
-                            <input type="checkbox" class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
+                            <input type="checkbox"
+                                class="w-5 h-5 rounded border-cyber-border bg-cyber-darker text-purple-500 focus:ring-purple-500">
                         </label>
                     </div>
                 </div>
             </div>
-            
+
             <div class="mt-6 flex justify-end gap-3">
                 <button class="px-6 py-2 rounded-lg border border-cyber-border hover:bg-cyber-dark transition-all">
                     Reset to Defaults
                 </button>
-                <button class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-medium">
+                <button
+                    class="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 transition-all font-medium">
                     Save Changes
                 </button>
             </div>

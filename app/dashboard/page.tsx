@@ -1,4 +1,6 @@
 "use client"
+import { useAlertPolling } from "@/hooks/use-alert-polling"
+import { useEffect } from "react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatsCards } from "@/components/stats-cards"
@@ -11,7 +13,31 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
-  const { emails, alerts } = useAppStore()
+  useAlertPolling(5000); // Poll every 5 seconds
+  const emails = useAppStore((state) => state.emails)
+  const alerts = useAppStore((state) => state.alerts)
+  const setEmails = useAppStore((state) => state.setEmails)
+
+  // Load emails on first visit
+  useEffect(() => {
+    if (emails.length === 0) {
+      const loadEmails = async () => {
+        try {
+          const res = await fetch('/api/fetch-emails', {
+            method: 'POST',
+            body: JSON.stringify({ limit: 50 })
+          })
+          const data = await res.json()
+          if (res.ok && Array.isArray(data)) {
+            setEmails(data)
+          }
+        } catch (err) {
+          console.error('Failed to load emails:', err)
+        }
+      }
+      loadEmails()
+    }
+  }, [emails.length, setEmails])
 
   const recentEmails = emails.slice(0, 5)
   const averageRiskScore = Math.round(emails.reduce((acc, e) => acc + e.riskScore, 0) / emails.length)
@@ -165,22 +191,20 @@ export default function DashboardPage() {
             {recentAlerts.map((alert) => (
               <div key={alert.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
                 <div
-                  className={`p-2 rounded-lg ${
-                    alert.severity === "critical"
+                  className={`p-2 rounded-lg ${alert.severity === "critical"
                       ? "bg-red-500/20"
                       : alert.severity === "high"
                         ? "bg-orange-500/20"
                         : "bg-yellow-500/20"
-                  }`}
+                    }`}
                 >
                   <AlertTriangle
-                    className={`w-4 h-4 ${
-                      alert.severity === "critical"
+                    className={`w-4 h-4 ${alert.severity === "critical"
                         ? "text-red-400"
                         : alert.severity === "high"
                           ? "text-orange-400"
                           : "text-yellow-400"
-                    }`}
+                      }`}
                   />
                 </div>
                 <div className="flex-1 min-w-0">

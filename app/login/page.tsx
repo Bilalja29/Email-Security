@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAppStore()
+  const setActiveImapConfig = useAppStore((state) => state.setActiveImapConfig)
   const { toast } = useToast()
 
   const [provider, setProvider] = useState("")
@@ -41,41 +41,79 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate connection delay
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    try {
+      // Save IMAP config to encrypted store
+      const res = await fetch('/api/imap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host,
+          port: Number.parseInt(port),
+          email,
+          password,
+          name: provider || 'Custom',
+        }),
+      })
 
-    login({
-      host,
-      port: Number.parseInt(port),
-      email,
-      password,
-    })
+      if (!res.ok) throw new Error('Failed to save config')
 
-    toast({
-      title: "Connected Successfully",
-      description: "Your inbox is now being scanned for threats.",
-    })
+      const { id } = await res.json()
+      setActiveImapConfig(id)
 
-    router.push("/dashboard")
+      toast({
+        title: "Connected Successfully",
+        description: "Your inbox is now being scanned for threats.",
+      })
+
+      router.push("/dashboard")
+    } catch (err) {
+      toast({
+        title: "Connection Failed",
+        description: err instanceof Error ? err.message : "Could not connect to your email",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleDemoLogin = async () => {
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    login({
-      host: "imap.gmail.com",
-      port: 993,
-      email: "demo@example.com",
-      password: "demo",
-    })
+    try {
+      // Save demo IMAP config
+      const res = await fetch('/api/imap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: "imap.gmail.com",
+          port: 993,
+          email: "demo@example.com",
+          password: "demo",
+          name: "Demo Account",
+        }),
+      })
 
-    toast({
-      title: "Demo Mode Activated",
-      description: "Viewing sample emails with mock threat data.",
-    })
+      if (!res.ok) throw new Error('Failed to save demo config')
 
-    router.push("/dashboard")
+      const { id } = await res.json()
+      setActiveImapConfig(id)
+
+      toast({
+        title: "Demo Mode Activated",
+        description: "Viewing sample emails with mock threat data.",
+      })
+
+      router.push("/dashboard")
+    } catch (err) {
+      toast({
+        title: "Demo Login Failed",
+        description: err instanceof Error ? err.message : "Could not start demo mode",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (

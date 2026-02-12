@@ -3,56 +3,56 @@
 {% block title %}{{ email.subject }} - Email Security Tool{% endblock %}
 
 {% block content %}
-<div class="flex min-h-screen">
+<div class="flex min-h-screen bg-black">
     {% include 'partials/sidebar.html' %}
-    
+
     <div class="flex-1 ml-64">
         {% include 'partials/header.html' %}
-        
-        <main class="p-6">
+
+        <main class="p-6 bg-black flex-1">
             <!-- Back Button -->
-            <a href="{{ url_for('inbox') }}" class="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-all">
+            <a href="{{ url_for('inbox') }}"
+                class="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-all">
                 <i class="fas fa-arrow-left"></i>
                 <span>Back to Inbox</span>
             </a>
-            
+
             <div class="grid lg:grid-cols-3 gap-6">
                 <!-- Email Content -->
                 <div class="lg:col-span-2 space-y-6">
-                    <!-- Email Header -->
+                    <!-- Email Header (Simplified, Real Fields Only) -->
                     <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
                         <div class="flex items-start justify-between mb-4">
                             <div class="flex items-center gap-4">
-                                <div class="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold
-                                    {% if email.riskLevel == 'dangerous' %}bg-red-500/20 text-red-400
-                                    {% elif email.riskLevel == 'warning' %}bg-yellow-500/20 text-yellow-400
-                                    {% else %}bg-green-500/20 text-green-400{% endif %}">
-                                    {{ email.fromName[0] }}
+                                <div
+                                    class="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold bg-green-500/20 text-green-400">
+                                    {{ email.fromName[0]|default('U') }}
                                 </div>
                                 <div>
                                     <h1 class="text-xl font-bold">{{ email.fromName }}</h1>
-                                    <p class="text-gray-400">{{ email['from'] }}</p>
+                                    <p class="text-sm text-gray-400">{{ email.from }}</p>
+                                    <p class="text-sm text-gray-500">Received: {{ email.date }}</p>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="px-4 py-2 rounded-lg font-bold text-lg
-                                    {% if email.riskLevel == 'dangerous' %}bg-red-500/20 text-red-400 border border-red-500/30
-                                    {% elif email.riskLevel == 'warning' %}bg-yellow-500/20 text-yellow-400 border border-yellow-500/30
-                                    {% else %}bg-green-500/20 text-green-400 border border-green-500/30{% endif %}">
-                                    {{ email.riskScore }}% Risk
+                                <div
+                                    class="px-3 py-1 rounded-full text-sm font-medium mb-1 bg-green-500/20 text-green-400">
+                                    Low Risk (Real Email)
                                 </div>
-                                <p class="text-gray-500 text-sm mt-2">{{ email.date[:10] }}</p>
                             </div>
                         </div>
-                        
-                        <h2 class="text-2xl font-semibold mb-4">{{ email.subject }}</h2>
-                        
-                        <!-- Email Body -->
-                        <div class="prose prose-invert max-w-none bg-cyber-dark rounded-lg p-6 border border-cyber-border">
-                            {{ email.body|safe }}
+                        <div class="mt-6">
+                            <h2 class="text-lg font-semibold mb-2">Subject</h2>
+                            <p class="text-gray-300">{{ email.subject }}</p>
+                        </div>
+                        <div class="mt-6">
+                            <h2 class="text-lg font-semibold mb-2">Message Body</h2>
+                            <div class="bg-cyber-dark rounded-lg p-4 whitespace-pre-wrap text-gray-300">
+                                {{ email.body }}
+                            </div>
                         </div>
                     </div>
-                    
+
                     <!-- Attachments -->
                     {% if email.attachments %}
                     <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
@@ -60,20 +60,24 @@
                             <i class="fas fa-paperclip text-purple-400"></i>
                             Attachments ({{ email.attachments|length }})
                         </h3>
-                        
+
                         <div class="space-y-3">
                             {% for attachment in email.attachments %}
-                            <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border 
+                            <div
+                                class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border 
                                 {% if attachment.status == 'malicious' %}border-red-500/30{% elif attachment.status == 'suspicious' %}border-yellow-500/30{% else %}border-cyber-border{% endif %}">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center
+                                    <div
+                                        class="w-10 h-10 rounded-lg flex items-center justify-center
                                         {% if attachment.status == 'malicious' %}bg-red-500/20{% elif attachment.status == 'suspicious' %}bg-yellow-500/20{% else %}bg-gray-500/20{% endif %}">
-                                        <i class="fas fa-file text-lg
+                                        <i
+                                            class="fas fa-file text-lg
                                             {% if attachment.status == 'malicious' %}text-red-400{% elif attachment.status == 'suspicious' %}text-yellow-400{% else %}text-gray-400{% endif %}"></i>
                                     </div>
                                     <div>
                                         <p class="font-medium">{{ attachment.name }}</p>
-                                        <p class="text-sm text-gray-400">{{ attachment.size }} - {{ attachment.type }}</p>
+                                        <p class="text-sm text-gray-400">{{ attachment.size }} - {{ attachment.type }}
+                                        </p>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-3">
@@ -83,7 +87,8 @@
                                         {% else %}bg-green-500/20 text-green-400{% endif %}">
                                         {{ attachment.status|capitalize }}
                                     </span>
-                                    <button onclick="analyzeSandbox('{{ attachment.name }}')" class="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
+                                    <button onclick="analyzeSandbox('{{ attachment.name }}')"
+                                        class="px-4 py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center gap-2">
                                         <i class="fas fa-flask"></i>
                                         Analyze in Sandbox
                                     </button>
@@ -93,134 +98,286 @@
                         </div>
                     </div>
                     {% endif %}
-                    
+
+                    <!-- VirusTotal Scanned URLs -->
+                    {% if scanned_urls %}
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <i class="fas fa-biohazard text-cyan-400"></i>
+                            URLs Scanned with VirusTotal ({{ scanned_urls|length }})
+                        </h3>
+
+                        <div class="space-y-3">
+                            {% set malicious_urls = scanned_urls|selectattr('verdict', 'equalto', 'malicious')|list %}
+                            {% set suspicious_urls = scanned_urls|selectattr('verdict', 'equalto', 'suspicious')|list %}
+                            {% set safe_urls = scanned_urls|selectattr('verdict', 'equalto', 'safe')|list %}
+                            {% set pending_urls = scanned_urls|selectattr('verdict', 'equalto', 'pending')|list %}
+                            {% set unscanned_urls = scanned_urls|selectattr('verdict', 'equalto', 'unscanned')|list %}
+
+                            <!-- Malicious URLs -->
+                            {% if malicious_urls %}
+                            <div class="mb-4">
+                                <h4 class="text-sm font-semibold text-red-400 mb-3">
+                                    <i class="fas fa-times-circle mr-2"></i>
+                                    Malicious URLs ({{ malicious_urls|length }})
+                                </h4>
+                                {% for item in malicious_urls %}
+                                <div
+                                    class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-red-500/30 mb-2">
+                                    <div class="flex items-center gap-3 flex-1">
+                                        <div
+                                            class="w-10 h-10 rounded-lg flex items-center justify-center bg-red-500/20">
+                                            <i class="fas fa-virus text-red-400"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-mono text-sm break-all text-red-400">{{ item.url }}</p>
+                                            <p class="text-xs text-red-300 mt-1">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                {{ item.malicious }}/{{ item.total }} engines flagged as malicious
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {% if item.permalink %}
+                                    <a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer"
+                                        class="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all text-sm whitespace-nowrap ml-4">
+                                        View Report →
+                                    </a>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Suspicious URLs -->
+                            {% if suspicious_urls %}
+                            <div class="mb-4">
+                                <h4 class="text-sm font-semibold text-yellow-400 mb-3">
+                                    <i class="fas fa-exclamation-circle mr-2"></i>
+                                    Suspicious URLs ({{ suspicious_urls|length }})
+                                </h4>
+                                {% for item in suspicious_urls %}
+                                <div
+                                    class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-yellow-500/30 mb-2">
+                                    <div class="flex items-center gap-3 flex-1">
+                                        <div
+                                            class="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-500/20">
+                                            <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-mono text-sm break-all text-yellow-400">{{ item.url }}</p>
+                                            <p class="text-xs text-yellow-300 mt-1">
+                                                <i class="fas fa-flag mr-1"></i>
+                                                {{ item.suspicious }}/{{ item.total }} engines flagged as suspicious
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {% if item.permalink %}
+                                    <a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer"
+                                        class="px-3 py-1 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all text-sm whitespace-nowrap ml-4">
+                                        View Report →
+                                    </a>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Safe URLs -->
+                            {% if safe_urls %}
+                            <div class="mb-4">
+                                <h4 class="text-sm font-semibold text-green-400 mb-3">
+                                    <i class="fas fa-check-circle mr-2"></i>
+                                    Safe URLs ({{ safe_urls|length }})
+                                </h4>
+                                {% for item in safe_urls %}
+                                <div
+                                    class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-green-500/30 mb-2">
+                                    <div class="flex items-center gap-3 flex-1">
+                                        <div
+                                            class="w-10 h-10 rounded-lg flex items-center justify-center bg-green-500/20">
+                                            <i class="fas fa-link text-green-400"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-mono text-sm break-all text-green-400">{{ item.url }}</p>
+                                            <p class="text-xs text-green-300 mt-1">
+                                                <i class="fas fa-check mr-1"></i>
+                                                {{ item.harmless }}/{{ item.total }} engines verified as safe
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Pending/Unscanned URLs -->
+                            {% if pending_urls or unscanned_urls %}
+                            <div class="mb-4">
+                                <h4 class="text-sm font-semibold text-blue-400 mb-3">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>
+                                    Pending Scan ({{ (pending_urls|length) + (unscanned_urls|length) }})
+                                </h4>
+                                {% for item in pending_urls + unscanned_urls %}
+                                <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-blue-500/30 mb-2"
+                                    id="url-scan-{{ loop.index0 }}">
+                                    <div class="flex items-center gap-3 flex-1">
+                                        <div
+                                            class="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-500/20">
+                                            <i class="fas fa-link text-blue-400"></i>
+                                        </div>
+                                        <div class="flex-1">
+                                            <p class="font-mono text-sm break-all text-blue-400">{{ item.url }}</p>
+                                            <p class="text-xs text-blue-300 mt-1">
+                                                {% if item.error %}
+                                                <i class="fas fa-info-circle mr-1"></i>
+                                                {{ item.error }}
+                                                {% else %}
+                                                <i class="fas fa-hourglass-half mr-1"></i>
+                                                Ready to scan
+                                                {% endif %}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button onclick="scanURL('{{ item.url }}', {{ loop.index0 }})"
+                                        class="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all text-sm whitespace-nowrap ml-4 scan-btn-{{ loop.index0 }}"
+                                        id="scan-btn-{{ loop.index0 }}">
+                                        <i class="fas fa-magnifying-glass mr-1"></i>Scan
+                                    </button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% elif email.urls or email.suspiciousUrls %}
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <i class="fas fa-link text-blue-400"></i>
+                            Links ({{ (email.urls|length) + (email.suspiciousUrls|length) }})
+                        </h3>
+
+                        <div class="space-y-3">
+                            <!-- Suspicious URLs -->
+                            {% if email.suspiciousUrls %}
+                            {% for item in email.suspiciousUrls %}
+                            <div
+                                class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-yellow-500/30">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-500/20">
+                                        <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-mono text-sm break-all">{{ item.url }}</p>
+                                        <p class="text-xs text-yellow-400">{{ item.reason }}</p>
+                                    </div>
+                                </div>
+                                <button onclick="scanUrl('{{ item.url }}')"
+                                    class="px-3 py-1 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all text-sm whitespace-nowrap">
+                                    Scan
+                                </button>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+
+                            <!-- Safe URLs -->
+                            {% if email.urls %}
+                            {% for url in email.urls %}
+                            <div
+                                class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-gray-500/30">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-gray-500/20">
+                                        <i class="fas fa-link text-gray-400"></i>
+                                    </div>
+                                    <p class="font-mono text-sm break-all">{{ url }}</p>
+                                </div>
+                                <button onclick="scanUrl('{{ url }}')"
+                                    class="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all text-sm whitespace-nowrap">
+                                    Scan
+                                </button>
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- Sandbox Report Modal -->
-                    <div id="sandbox-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-                        <div class="bg-cyber-card border border-cyber-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                    <div id="sandbox-modal"
+                        class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                        <div
+                            class="bg-cyber-card border border-cyber-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                             <div class="p-6 border-b border-cyber-border">
                                 <div class="flex items-center justify-between">
                                     <h3 class="text-xl font-bold flex items-center gap-2">
                                         <i class="fas fa-flask text-purple-400"></i>
                                         Sandbox Analysis Report
                                     </h3>
-                                    <button onclick="closeSandboxModal()" class="p-2 hover:bg-cyber-dark rounded-lg transition-all">
+                                    <button onclick="closeSandboxModal()"
+                                        class="p-2 hover:bg-cyber-dark rounded-lg transition-all">
                                         <i class="fas fa-times"></i>
                                     </button>
                                 </div>
                             </div>
-                            
+
                             <div id="sandbox-content" class="p-6">
                                 <!-- Content will be injected here -->
                             </div>
                         </div>
                     </div>
+
+                    <!-- URL Scan Result Modal -->
+                    <div id="url-scan-modal"
+                        class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+                        <div
+                            class="bg-cyber-card border border-cyber-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            <div class="p-6 border-b border-cyber-border">
+                                <div class="flex items-center justify-between">
+                                    <h3 class="text-xl font-bold flex items-center gap-2">
+                                        <i class="fas fa-biohazard text-cyan-400"></i>
+                                        VirusTotal URL Scan
+                                    </h3>
+                                    <button onclick="closeUrlScanModal()"
+                                        class="p-2 hover:bg-cyber-dark rounded-lg transition-all">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="url-scan-content" class="p-6">
+                                <!-- Content will be injected here -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                
-                <!-- Security Analysis Sidebar -->
+
+                <!-- Security Analysis Sidebar (Removed mock fields, only actions remain) -->
                 <div class="space-y-6">
-                    <!-- Threat Summary -->
-                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
-                        <h3 class="text-lg font-semibold mb-4">Threat Analysis</h3>
-                        
-                        <div class="space-y-4">
-                            <!-- Sender Reputation -->
-                            <div>
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-gray-400">Sender Reputation</span>
-                                    <span class="font-medium
-                                        {% if email.senderReputation > 70 %}text-green-400
-                                        {% elif email.senderReputation > 40 %}text-yellow-400
-                                        {% else %}text-red-400{% endif %}">
-                                        {{ email.senderReputation }}/100
-                                    </span>
-                                </div>
-                                <div class="h-2 bg-cyber-dark rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all
-                                        {% if email.senderReputation > 70 %}bg-green-500
-                                        {% elif email.senderReputation > 40 %}bg-yellow-500
-                                        {% else %}bg-red-500{% endif %}"
-                                        style="width: {{ email.senderReputation }} %"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Domain Age -->
-                            <div class="flex items-center justify-between py-3 border-t border-cyber-border">
-                                <span class="text-gray-400">Domain Age</span>
-                                <span class="font-medium {% if 'day' in email.domainAge %}text-red-400{% else %}text-green-400{% endif %}">
-                                    {{ email.domainAge }}
-                                </span>
-                            </div>
-                            
-                            <!-- Quarantine Status -->
-                            <div class="flex items-center justify-between py-3 border-t border-cyber-border">
-                                <span class="text-gray-400">Status</span>
-                                {% if email.isQuarantined %}
-                                <span class="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-400 text-sm">
-                                    <i class="fas fa-radiation mr-1"></i> Quarantined
-                                </span>
-                                {% else %}
-                                <span class="px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-sm">
-                                    <i class="fas fa-inbox mr-1"></i> In Inbox
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Detected Threats -->
-                    {% if email.threats %}
-                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
-                        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <i class="fas fa-exclamation-triangle text-red-400"></i>
-                            Detected Threats ({{ email.threats|length }})
-                        </h3>
-                        
-                        <div class="space-y-2">
-                            {% for threat in email.threats %}
-                            <div class="flex items-start gap-3 p-3 rounded-lg bg-red-500/20 border border-red-500/20">
-                                <i class="fas fa-times-circle text-red-400 mt-0.5"></i>
-                                <span class="text-sm">{{ threat }}</span>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-                    
                     <!-- Quick Actions -->
                     <div class="bg-cyber-card border border-cyber-border rounded-xl p-6">
                         <h3 class="text-lg font-semibold mb-4">Actions</h3>
                         <div class="space-y-2">
-                            {% if not email.isQuarantined %}
-                            <form method="post" action="{{ url_for('quarantine_email', email_id=email['id']) }}">
-                                <button type="submit" class="w-full py-2 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2">
+                            <button id="scan-virus-total"
+                                class="w-full py-2 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-biohazard"></i>
+                                Scan with VirusTotal
+                            </button>
+
+                            <button onclick="analyzeSandbox('email')"
+                                class="w-full py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-flask"></i>
+                                Analyze in Sandbox
+                            </button>
+
+                            <form method="post" action="{{ url_for('quarantine_email', email_id=email['id']) }}"
+                                style="display:contents;">
+                                <input type="hidden" name="subject" value="{{ email.subject }}">
+                                <input type="hidden" name="from" value="{{ email['from'] }}">
+                                <input type="hidden" name="fromName" value="{{ email.fromName }}">
+                                <input type="hidden" name="date" value="{{ email.date }}">
+                                <button type="submit"
+                                    class="w-full py-2 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2">
                                     <i class="fas fa-radiation"></i>
                                     Move to Quarantine
-                                </button>
-                            </form>
-                            {% else %}
-                            <form method="post" action="{{ url_for('restore_email', email_id=email['id']) }}">
-                                <button type="submit" class="w-full py-2 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all flex items-center justify-center gap-2">
-                                    <i class="fas fa-check"></i>
-                                    Restore to Inbox
-                                </button>
-                            </form>
-                            {% endif %}
-                            <form method="post" action="{{ url_for('delete_email', email_id=email['id']) }}">
-                                <button type="submit" class="w-full py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all flex items-center justify-center gap-2">
-                                    <i class="fas fa-trash"></i>
-                                    Delete Permanently
-                                </button>
-                            </form>
-                            <form method="post" action="{{ url_for('report_spam', email_id=email['id']) }}">
-                                <button type="submit" class="w-full py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all flex items-center justify-center gap-2">
-                                    <i class="fas fa-flag"></i>
-                                    Report as Spam
-                                </button>
-                            </form>
-                            <form method="post" action="{{ url_for('export_report', email_id=email['id']) }}">
-                                <button type="submit" class="w-full py-2 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all flex items-center justify-center gap-2">
-                                    <i class="fas fa-file-pdf"></i>
-                                    Export Report
                                 </button>
                             </form>
                         </div>
@@ -232,18 +389,78 @@
 </div>
 
 <script>
-    function analyzeSandbox(filename) {
+    document.addEventListener('DOMContentLoaded', function () {
+        const scanBtn = document.getElementById('scan-virus-total');
+        if (scanBtn) {
+            scanBtn.addEventListener('click', function () {
+                scanBtn.disabled = true;
+                scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+                fetch('/api/scan-virus-total', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email_id: '{{ email.id }}' })
+                })
+                    .then(res => res.json())
+                    .then(result => {
+                        scanBtn.disabled = false;
+                        scanBtn.innerHTML = '<i class="fas fa-biohazard"></i> Scan with VirusTotal';
+                        showVirusTotalResult(result);
+                    })
+                    .catch(() => {
+                        scanBtn.disabled = false;
+                        scanBtn.innerHTML = '<i class="fas fa-biohazard"></i> Scan with VirusTotal';
+                        alert('VirusTotal scan failed.');
+                    });
+            });
+        }
+    });
+
+    function showVirusTotalResult(result) {
+        // Support array of scan items or single object
+        const items = Array.isArray(result) ? result : [result];
+        const rows = items.map(it => {
+            const r = it.result || {};
+            const detections = (typeof r.detections === 'number') ? r.detections : 'N/A';
+            const total = (typeof r.total === 'number') ? r.total : 'N/A';
+            const permalink = r.permalink ? `<a href="${r.permalink}" target="_blank" class="text-purple-400 underline">View Full Report</a>` : '';
+            const statusColor = (typeof r.detections === 'number' && r.detections > 0) ? 'red' : (typeof r.detections === 'number' && r.detections === 0) ? 'green' : 'gray';
+            const title = it.type ? it.type.charAt(0).toUpperCase() + it.type.slice(1) : 'Item';
+            const target = it.target || '';
+            const errorHtml = r.error ? `<div class="text-sm text-red-400">Error: ${r.error}</div>` : '';
+            return `
+                <div class="p-3 border-b">
+                    <div class="text-sm text-muted-foreground mb-1">${title}: <span class="break-all">${target}</span></div>
+                    <div class="text-2xl font-bold text-${statusColor}-400">${detections} / ${total} engines flagged</div>
+                    ${permalink}
+                    ${errorHtml}
+                </div>
+            `;
+        }).join('');
+        const html = `
+            <div class="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl max-w-2xl w-full p-6 text-left">
+                    <h3 class="text-xl font-bold mb-4">VirusTotal Scan Result</h3>
+                    <div class="space-y-3 max-h-[60vh] overflow-y-auto">${rows}</div>
+                    <div class="mt-6 text-right">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 rounded-lg bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30">Close</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+    }
+    function analyzeSandbox(target) {
         const modal = document.getElementById('sandbox-modal');
         const content = document.getElementById('sandbox-content');
-        
+
         modal.classList.remove('hidden');
-        
+
         // Show loading state
         content.innerHTML = `
             <div class="text-center py-12">
                 <div class="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-4"></div>
                 <h4 class="text-xl font-semibold mb-2">Analyzing in Sandbox...</h4>
-                <p class="text-gray-400">Executing file in isolated environment</p>
+                <p class="text-gray-400">Executing ${target === 'email' ? 'email body and links' : 'file'} in isolated environment</p>
                 <div class="mt-6 space-y-2 text-left max-w-md mx-auto">
                     <div class="flex items-center gap-3 text-sm" id="step-1">
                         <i class="fas fa-spinner fa-spin text-purple-400"></i>
@@ -251,7 +468,7 @@
                     </div>
                     <div class="flex items-center gap-3 text-sm text-gray-500" id="step-2">
                         <i class="fas fa-circle text-gray-600"></i>
-                        <span>Detonating file...</span>
+                        <span>Detonating ${target === 'email' ? 'content' : 'file'}...</span>
                     </div>
                     <div class="flex items-center gap-3 text-sm text-gray-500" id="step-3">
                         <i class="fas fa-circle text-gray-600"></i>
@@ -264,40 +481,54 @@
                 </div>
             </div>
         `;
-        
+
         // Animate steps
         setTimeout(() => {
             document.getElementById('step-1').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>Sandbox initialized</span>';
-            document.getElementById('step-2').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Detonating file...</span>';
+            document.getElementById('step-2').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Detonating ' + (target === 'email' ? 'content' : 'file') + '...</span>';
             document.getElementById('step-2').classList.remove('text-gray-500');
         }, 1500);
-        
+
         setTimeout(() => {
-            document.getElementById('step-2').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>File detonated</span>';
+            document.getElementById('step-2').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>Content detonated</span>';
             document.getElementById('step-3').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Monitoring behavior...</span>';
             document.getElementById('step-3').classList.remove('text-gray-500');
         }, 3000);
-        
+
         setTimeout(() => {
             document.getElementById('step-3').innerHTML = '<i class="fas fa-check-circle text-green-400"></i><span>Behavior analyzed</span>';
             document.getElementById('step-4').innerHTML = '<i class="fas fa-spinner fa-spin text-purple-400"></i><span>Generating report...</span>';
             document.getElementById('step-4').classList.remove('text-gray-500');
         }, 4500);
-        
+
         // Fetch actual report
         setTimeout(() => {
+            const payload = target === 'email'
+                ? { email_id: '{{ email.id }}' }
+                : { attachment: target };
+
             fetch('/api/sandbox/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ attachment: filename })
+                body: JSON.stringify(payload)
             })
-            .then(res => res.json())
-            .then(report => {
-                content.innerHTML = renderSandboxReport(report);
-            });
+                .then(res => res.json())
+                .then(report => {
+                    content.innerHTML = renderSandboxReport(report);
+                })
+                .catch(err => {
+                    content.innerHTML = `
+                        <div class="text-center py-8">
+                            <i class="fas fa-exclamation-triangle text-red-400 text-4xl mb-4"></i>
+                            <h4 class="text-xl font-semibold text-red-400">Analysis Failed</h4>
+                            <p class="text-gray-400 mt-2">Sandbox environment is not available</p>
+                            <p class="text-sm text-gray-500 mt-4">Error: ${err.message}</p>
+                        </div>
+                    `;
+                });
         }, 6000);
     }
-    
+
     function renderSandboxReport(report) {
         const verdictColors = {
             'malicious': 'red',
@@ -305,7 +536,7 @@
             'clean': 'green'
         };
         const color = verdictColors[report.verdict] || 'gray';
-        
+
         let behaviorsHtml = report.behaviors.map(b => `
             <div class="flex items-start gap-3 p-3 rounded-lg bg-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-500/10 border border-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-500/20">
                 <i class="fas fa-${b.severity === 'critical' ? 'skull' : b.severity === 'high' ? 'exclamation-triangle' : 'info-circle'} text-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-400 mt-0.5"></i>
@@ -316,7 +547,7 @@
                 <span class="ml-auto px-2 py-0.5 rounded text-xs font-medium bg-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-500/20 text-${b.severity === 'critical' || b.severity === 'high' ? 'red' : b.severity === 'medium' ? 'yellow' : 'gray'}-400">${b.severity}</span>
             </div>
         `).join('');
-        
+
         return `
             <div class="space-y-6">
                 <!-- Verdict Banner -->
@@ -368,14 +599,137 @@
             </div>
         `;
     }
-    
+
     function closeSandboxModal() {
         document.getElementById('sandbox-modal').classList.add('hidden');
     }
-    
+
     // Close modal on escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeSandboxModal();
     });
+
+    async function scanURL(url, index) {
+        const btn = document.getElementById(`scan-btn-${index}`);
+        const container = document.getElementById(`url-scan-${index}`);
+
+        console.log(`[scanURL] Starting scan for URL: ${url}, index: ${index}`);
+        console.log(`[scanURL] Button found: ${!!btn}, Container found: ${!!container}`);
+
+        if (!btn || !container) {
+            console.error(`[scanURL ERROR] Elements not found for index ${index}. btn=${!!btn}, container=${!!container}`);
+            alert(`Error: Could not find scan elements`);
+            return;
+        }
+
+        // Show loading state
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Scanning...';
+        console.log(`[scanURL] Sending fetch request to /api/scan-url`);
+
+        try {
+            const response = await fetch('/api/scan-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ url: url })
+            });
+
+            console.log(`[scanURL] Fetch response status: ${response.status}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log('[scanURL] Scan result:', result);
+
+            // Build result HTML based on verdict
+            let resultHTML = '';
+            if (result.verdict === 'malicious') {
+                resultHTML = `
+                    <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-red-500/30">
+                        <div class="flex items-center gap-3 flex-1">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-red-500/20">
+                                <i class="fas fa-virus text-red-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-mono text-sm break-all text-red-400">${url}</p>
+                                <p class="text-xs text-red-300 mt-1">
+                                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                                    ${result.malicious}/${result.total} engines flagged as malicious
+                                </p>
+                            </div>
+                        </div>
+                        ${result.permalink ? `<a href="${result.permalink}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all text-sm whitespace-nowrap ml-4">View Report →</a>` : ''}
+                    </div>
+                `;
+            } else if (result.verdict === 'suspicious') {
+                resultHTML = `
+                    <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-yellow-500/30">
+                        <div class="flex items-center gap-3 flex-1">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-500/20">
+                                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-mono text-sm break-all text-yellow-400">${url}</p>
+                                <p class="text-xs text-yellow-300 mt-1">
+                                    <i class="fas fa-flag mr-1"></i>
+                                    ${result.suspicious}/${result.total} engines flagged as suspicious
+                                </p>
+                            </div>
+                        </div>
+                        ${result.permalink ? `<a href="${result.permalink}" target="_blank" rel="noopener noreferrer" class="px-3 py-1 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all text-sm whitespace-nowrap ml-4">View Report →</a>` : ''}
+                    </div>
+                `;
+            } else if (result.verdict === 'unscanned' || result.verdict === 'pending') {
+                resultHTML = `
+                    <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-blue-500/30">
+                        <div class="flex items-center gap-3 flex-1">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-500/20">
+                                <i class="fas fa-spinner fa-spin text-blue-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-mono text-sm break-all text-blue-400">${url}</p>
+                                <p class="text-xs text-blue-300 mt-1">
+                                    <i class="fas fa-hourglass-half mr-1"></i>
+                                    ${result.error ? result.error : 'URL submitted for scanning - please refresh in a moment for results'}
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="location.reload()" class="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all text-sm whitespace-nowrap ml-4">
+                            Refresh
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Default to safe verdict
+                resultHTML = `
+                    <div class="flex items-center justify-between p-4 rounded-lg bg-cyber-dark border border-green-500/30">
+                        <div class="flex items-center gap-3 flex-1">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-green-500/20">
+                                <i class="fas fa-check-circle text-green-400"></i>
+                            </div>
+                            <div class="flex-1">
+                                <p class="font-mono text-sm break-all text-green-400">${url}</p>
+                                <p class="text-xs text-green-300 mt-1">
+                                    <i class="fas fa-check mr-1"></i>
+                                    ${result.harmless || 0}/${result.total || 0} engines verified as safe
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.outerHTML = resultHTML;
+            console.log(`[scanURL] Successfully updated container with results`);
+        } catch (error) {
+            console.error('[scanURL ERROR]', error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magnifying-glass mr-1"></i>Scan Failed';
+            alert(`Failed to scan URL:\n${error.message}\n\nCheck browser console (F12) for details.`);
+        }
+    }
 </script>
 {% endblock %}

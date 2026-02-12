@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -10,9 +10,40 @@ import { useAppStore } from "@/lib/store"
 import { Search, Filter, RefreshCw, Inbox, AlertTriangle, Shield } from "lucide-react"
 
 export default function InboxPage() {
-  const { emails } = useAppStore()
+  const emails = useAppStore((state) => state.emails)
   const [search, setSearch] = useState("")
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+
+    try {
+      const res = await fetch('/api/fetch-emails', { method: 'POST', body: JSON.stringify({ limit: 30 }) })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch')
+
+      // Replace the store emails with fetched messages (API returns array directly)
+      // @ts-ignore
+      useAppStore.getState().setEmails(Array.isArray(data) ? data : data.emails || [])
+    } catch (err) {
+      console.error('Fetch failed', err)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  // Auto-fetch emails on page load and set up polling
+  useEffect(() => {
+    // Fetch emails on mount
+    handleRefresh()
+
+    // Set up auto-polling every 10 seconds to check for new emails (closer to real-time)
+    const pollInterval = setInterval(() => {
+      handleRefresh()
+    }, 10000)
+
+    return () => clearInterval(pollInterval)
+  }, [])
 
   const filteredEmails = emails.filter(
     (e) =>
@@ -25,24 +56,6 @@ export default function InboxPage() {
   const safeEmails = filteredEmails.filter((e) => e.riskLevel === "safe")
   const warningEmails = filteredEmails.filter((e) => e.riskLevel === "warning")
   const dangerousEmails = filteredEmails.filter((e) => e.riskLevel === "dangerous")
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-
-    try {
-      const res = await fetch('/api/fetch-emails', { method: 'POST', body: JSON.stringify({ limit: 30 }) })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Failed to fetch')
-
-      // Replace the store emails with fetched messages
-      // @ts-ignore
-      useAppStore.getState().setEmails(data.messages)
-    } catch (err) {
-      console.error('Fetch failed', err)
-    } finally {
-      setIsRefreshing(false)
-    }
-  }
 
   return (
     <div className="space-y-6">

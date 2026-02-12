@@ -1,74 +1,324 @@
-
-# ...existing code...
-
-# Place this after app = Flask(__name__) and all imports
-
-# ...existing code...
-
-# Place this after app = Flask(__name__) and all imports
-
-# ...existing code...
-
-# Place this after app = Flask(__name__) and all imports
-
-# ...existing code...
-
-# Place this after app = Flask(__name__) and all imports
-
 # --- VirusTotal Integration ---
+# To use VirusTotal scanning, set your API key in a .env file:
+# VIRUSTOTAL_API_KEY=your_actual_api_key_here
 from dotenv import load_dotenv
 import requests
 import time
 import os
 
 load_dotenv()
+# Also load api.env if present (where the API key may be stored)
+load_dotenv('api.env')
 
 VIRUSTOTAL_API_KEY = os.getenv('VIRUSTOTAL_API_KEY')
 
+def extract_urls_from_text(text):
+    """Extract URLs from email body and subject - both plain text and HTML links."""
+    # Handle bytes input
+    if isinstance(text, bytes):
+        try:
+            text = text.decode('utf-8', errors='ignore')
+        except:
+            return []
+    
+    if not text:
+        return []
+    
+    urls = []
+    
+    # 1. Extract plain text URLs (http:// or https://)
+    url_regex = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    plain_urls = re.findall(url_regex, text)
+    urls.extend(plain_urls)
+    
+    # 2. Extract URLs from HTML href attributes
+    href_regex = r'href=["\']([^"\']+)["\']'
+    href_urls = re.findall(href_regex, text)
+    urls.extend(href_urls)
+    
+    # 3. Extract URLs from HTML src attributes
+    src_regex = r'src=["\']([^"\']+)["\']'
+    src_urls = re.findall(src_regex, text)
+    urls.extend(src_urls)
+    
+    # 4. Filter to only keep valid HTTP(S) URLs
+    valid_urls = [u for u in urls if u.startswith(('http://', 'https://', 'ftp://'))]
+    
+    # 5. Remove duplicates and sort
+    unique_urls = list(set(valid_urls))
+    
+    print(f"[URL EXTRACTION] Found {len(unique_urls)} unique URLs from text")
+    return unique_urls
+
+def scan_url_with_virustotal(url):
+    """Submit a URL to VirusTotal and return analysis results."""
+    if not VIRUSTOTAL_API_KEY:
+        return {"error": "No API key", "detections": 0, "total": 0, "url": url, "verdict": "safe"}
+    
+    try:
+        import base64
+        
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+        
+        # First, try to get existing report using URL ID (base64 encoded)
+        url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip('=')
+        existing_report_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
+        
+        print(f"[VT URL] Checking existing report for: {url}")
+        existing_resp = requests.get(existing_report_url, headers=headers, timeout=10)
+        
+        if existing_resp.status_code == 200:
+            print(f"[VT URL] Found existing report!")
+            data = existing_resp.json().get('data', {})
+            attrs = data.get('attributes', {})
+            stats = attrs.get('last_analysis_stats', {})
+            
+            malicious = stats.get('malicious', 0)
+            suspicious = stats.get('suspicious', 0)
+            undetected = stats.get('undetected', 0)
+            harmless = stats.get('harmless', 0)
+            
+            print(f"[VT URL] Stats - Malicious: {malicious}, Suspicious: {suspicious}")
+            
+            return {
+                'url': url,
+                'malicious': malicious,
+                'suspicious': suspicious,
+                'undetected': undetected,
+                'harmless': harmless,
+                'total': malicious + suspicious + undetected + harmless,
+                'status': attrs.get('last_http_response_code', 'unknown'),
+                'verdict': 'malicious' if malicious > 0 else 'suspicious' if suspicious > 0 else 'safe',
+                'permalink': f"https://www.virustotal.com/gui/home/url/{url_id}"
+            }
+        elif existing_resp.status_code == 404:
+            print(f"[VT URL] No existing report, URL not yet scanned")
+            # Return unscanned status
+            return {
+                'url': url,
+                'malicious': 0,
+                'suspicious': 0,
+                'undetected': 0,
+                'harmless': 0,
+                'total': 0,
+                'verdict': 'unscanned',
+                'status': 'not_found',
+                'error': 'URL not yet scanned in VirusTotal'
+            }
+        
+        # If no existing report, submit URL for scanning (don't wait for results on page load)
+        print(f"[VT URL] No existing report, submitting URL for scan...")
+        submit_url = "https://www.virustotal.com/api/v3/urls"
+        data = {"url": url}
+        
+        resp = requests.post(submit_url, headers=headers, data=data, timeout=10)
+        print(f"[VT URL] Submission response: {resp.status_code}")
+        
+        if resp.status_code in (200, 201):
+            return {
+                'url': url,
+                'malicious': 0,
+                'suspicious': 0,
+                'undetected': 0,
+                'harmless': 0,
+                'total': 0,
+                'verdict': 'pending',
+                'error': 'URL submitted for scanning (please refresh in a moment for results)'
+            }
+        else:
+            print(f"[VT URL] Submission failed: {resp.status_code}")
+            return {
+                'url': url,
+                'malicious': 0,
+                'suspicious': 0,
+                'undetected': 0,
+                'harmless': 0,
+                'total': 0,
+                'verdict': 'unknown',
+                'error': f"Submission failed: {resp.status_code}"
+            }
+    
+    except requests.Timeout:
+        print(f"[VT URL] Timeout scanning URL: {url}")
+        return {
+            'url': url,
+            'malicious': 0,
+            'suspicious': 0,
+            'undetected': 0,
+            'harmless': 0,
+            'total': 0,
+            'verdict': 'unknown',
+            'error': 'VirusTotal scan timeout (please try again)'
+        }
+    except Exception as e:
+        print(f"[VT URL scan error] {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'url': url,
+            'malicious': 0,
+            'suspicious': 0,
+            'undetected': 0,
+            'harmless': 0,
+            'total': 0,
+            'verdict': 'unknown',
+            'error': f"Exception: {str(e)}"
+        }
+
 def scan_attachment_with_virustotal(file_path, filename):
+    """Upload a file to VirusTotal (if needed) and return detections/total/permalink."""
     if not VIRUSTOTAL_API_KEY:
         return {"error": "No API key", "detections": 0, "total": 70}
+    try:
+        import hashlib
+        with open(file_path, 'rb') as f:
+            file_bytes = f.read()
+            sha256 = hashlib.sha256(file_bytes).hexdigest()
 
-    # Step 1: Get upload URL (for files >32MB, but most emails <32MB)
-    url = "https://www.virustotal.com/api/v3/files/upload_url"
-    headers = {"x-apikey": VIRUSTOTAL_API_KEY}
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return {"error": "Failed to get upload URL", "detections": 0, "total": 70}
-    upload_url = response.json()['data']
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+        report_url = f"https://www.virustotal.com/api/v3/files/{sha256}"
+        resp = requests.get(report_url, headers=headers)
+        if resp.status_code == 200:
+            vt_json = resp.json()
+            attrs = vt_json.get('data', {}).get('attributes', {})
+            stats = attrs.get('last_analysis_stats', {})
+            malicious = stats.get('malicious', 0)
+            suspicious = stats.get('suspicious', 0)
+            undetected = stats.get('undetected', 0)
+            harmless = stats.get('harmless', 0)
+            return {
+                'detections': malicious + suspicious,
+                'total': malicious + suspicious + undetected + harmless,
+                'permalink': f"https://www.virustotal.com/gui/file/{sha256}"
+            }
 
-    # Step 2: Upload file
-    with open(file_path, "rb") as f:
-        files = {"file": (filename, f)}
-        upload_response = requests.post(upload_url, headers=headers, files=files)
+        url = "https://www.virustotal.com/api/v3/files"
+        with open(file_path, 'rb') as f:
+            files = {"file": (filename, f)}
+            upload = requests.post(url, headers=headers, files=files)
+        if upload.status_code not in (200, 201):
+            return {"error": "Upload failed", "detections": 0, "total": 70}
 
-    if upload_response.status_code != 200:
-        return {"error": "Upload failed", "detections": 0, "total": 70}
+        analysis_id = upload.json().get('data', {}).get('id')
+        analysis_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
+        for _ in range(12):
+            time.sleep(5)
+            aresp = requests.get(analysis_url, headers=headers)
+            if aresp.status_code == 200:
+                aattrs = aresp.json().get('data', {}).get('attributes', {})
+                if aattrs.get('status') == 'completed':
+                    final = requests.get(report_url, headers=headers)
+                    if final.status_code == 200:
+                        vt_json = final.json()
+                        attrs = vt_json.get('data', {}).get('attributes', {})
+                        stats = attrs.get('last_analysis_stats', {})
+                        malicious = stats.get('malicious', 0)
+                        suspicious = stats.get('suspicious', 0)
+                        undetected = stats.get('undetected', 0)
+                        harmless = stats.get('harmless', 0)
+                        return {
+                            'detections': malicious + suspicious,
+                            'total': malicious + suspicious + undetected + harmless,
+                            'permalink': f"https://www.virustotal.com/gui/file/{sha256}"
+                        }
+                    break
+        return {"error": "Timeout", "detections": 0, "total": 70}
+    except Exception as e:
+        print("[scan_attachment_with_virustotal error]", e)
+        return {"error": str(e), "detections": 0, "total": 70}
 
-    analysis_id = upload_response.json()['data']['id']
+# --- Quarantine Management ---
+QUARANTINE_FILE = "data/quarantine.json"
 
-    # Step 3: Poll for results
-    report_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
-    for _ in range(10):  # Wait up to ~2 minutes
-        time.sleep(12)
-        report_response = requests.get(report_url, headers=headers)
-        if report_response.status_code == 200:
-            data = report_response.json()['data']['attributes']['stats']
-            if report_response.json()['data']['attributes']['status'] == 'completed':
-                return {
-                    "detections": data['malicious'] + data['suspicious'],
-                    "total": data['malicious'] + data['suspicious'] + data['undetected'] + data['harmless'],
-                    "permalink": f"https://www.virustotal.com/gui/file/{upload_response.json()['data']['id']}"
-                }
+def load_quarantine():
+    """Load quarantined email IDs from storage."""
+    if not os.path.exists(QUARANTINE_FILE):
+        return {}
+    try:
+        with open(QUARANTINE_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return {}
 
-    return {"error": "Timeout", "detections": 0, "total": 70}
+def save_quarantine(quarantine_data):
+    """Save quarantined email data to storage."""
+    os.makedirs(os.path.dirname(QUARANTINE_FILE) or '.', exist_ok=True)
+    with open(QUARANTINE_FILE, 'w') as f:
+        json.dump(quarantine_data, f, indent=2)
+
+def add_to_quarantine(email_id, email_data, risk_score=95):
+    """Add an email to quarantine with risk score."""
+    quarantine = load_quarantine()
+    quarantine[email_id] = {
+        'id': email_id,
+        'subject': email_data.get('subject', ''),
+        'from': email_data.get('from', ''),
+        'fromName': email_data.get('fromName', ''),
+        'date': email_data.get('date', ''),
+        'body': email_data.get('body', ''),
+        'risk_score': risk_score,
+        'quarantined_at': datetime.now().isoformat()
+    }
+    save_quarantine(quarantine)
+
+def remove_from_quarantine(email_id):
+    """Remove an email from quarantine."""
+    quarantine = load_quarantine()
+    quarantine.pop(email_id, None)
+    save_quarantine(quarantine)
+
+def is_quarantined(email_id):
+    """Check if an email is quarantined."""
+    quarantine = load_quarantine()
+    return email_id in quarantine
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+import imaplib
+import smtplib
+from email.message import EmailMessage
+from email.parser import BytesParser
+from email import policy
+try:
+    import docker
+except ImportError:
+    docker = None
+from werkzeug.utils import secure_filename
+import time
+import os
+import email
+from email.header import decode_header
+from datetime import datetime, timedelta
+import json
+import random
+import re
+import base64
+import hashlib
+from functools import wraps
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization
+# --- Optionally: scan_attachment using virustotal_python ---
+# from virustotal_python import Virustotal
+# def scan_attachment(file_path):
+#     vtotal = Virustotal(API_KEY=os.getenv("VIRUSTOTAL_API_KEY"))
+#     with open(file_path, "rb") as f:
+#         analysis = vtotal.file_scan(f)
+#     report = vtotal.file_report(analysis['sha256'])
+#     malicious = report['positives'] > 0
+#     return {"malicious": malicious, "detections": report['positives'], "total": report['total']}
+# --- VirusTotal Scan Results Dashboard Route ---
+from flask import render_template
+
+virustotal_scan_results = []  # Store recent scan results for dashboard
+
 
 # --- New: scan_attachment using virustotal_python ---
 from virustotal_python import Virustotal
 import hashlib
 
 def scan_attachment(file_path):
-    vtotal = Virustotal(API_KEY=os.getenv("VT_API_KEY"))
+    vtotal = Virustotal(API_KEY=VIRUSTOTAL_API_KEY)
     with open(file_path, "rb") as f:
         analysis = vtotal.file_scan(f)
     # Wait for report (polling)
@@ -77,6 +327,7 @@ def scan_attachment(file_path):
     return {"malicious": malicious, "detections": report['positives'], "total": report['total']}
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_session import Session
 import imaplib
 import email
 from email.header import decode_header
@@ -93,9 +344,226 @@ from cryptography.hazmat.primitives import serialization
 from flask import Response
 
 # 2. Create the Flask app instance HERE (before any routes!)
+
+
+
+
+
+
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
-app.config['SESSION_TYPE'] = 'filesystem'
+app.secret_key = 'lightweight_email_security_fyp_2025_key'  # REQUIRED – enables session
+app.config['SESSION_TYPE'] = 'filesystem'  # Use filesystem instead of cookies
+app.config['SESSION_PERMANENT'] = False
+app.config['SESSION_USE_SIGNER'] = True
+app.config['SESSION_KEY_PREFIX'] = 'email_sec_'
+
+# Initialize Flask-Session for proper session management
+Session(app)
+
+# Initialize Docker client with graceful fallback
+docker_client = None
+if docker is not None:
+    try:
+        docker_client = docker.from_env()
+    except Exception as e:
+        print(f"⚠️  Warning: Could not connect to Docker daemon: {e}")
+        print("   The sandbox analyzer will not be available.")
+else:
+    print("⚠️  Docker package not installed. Sandbox analyzer will not be available.")
+
+app.config['SHARED_VOLUME_PATH'] = os.path.abspath('shared_volume')
+app.config['UPLOAD_FOLDER'] = os.path.join(app.config['SHARED_VOLUME_PATH'], 'input')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# --- API: Manual VirusTotal Scan for Email ---
+@app.route('/api/scan-virus-total', methods=['POST'])
+@login_required
+def api_scan_virus_total():
+    data = request.get_json()
+    email_id = data.get('email_id')
+    emails = fetch_emails(num_emails=50)
+    email = next((e for e in emails if e['id'] == email_id), None)
+    if not email:
+        return jsonify({'error': 'Email not found'}), 404
+    # Scan first attachment if present
+    attachment_path = None
+    attachment_name = None
+    if email.get('attachments'):
+        for att in email['attachments']:
+            if att.get('path'):
+                attachment_path = att['path']
+                attachment_name = att.get('name', 'attachment')
+                break
+    scan_results = []
+    if attachment_path:
+        result = scan_attachment_with_virustotal(attachment_path, attachment_name)
+        scan_results.append({
+            'type': 'attachment',
+            'target': attachment_name,
+            'result': result
+        })
+    # Scan hashes in body
+    import re
+    body = email.get('body', '')
+    # Improved hash patterns for SHA256, SHA1, MD5
+    hash_patterns = [
+        r'(?<![a-fA-F0-9])[A-Fa-f0-9]{64}(?![a-fA-F0-9])',  # SHA256
+        r'(?<![a-fA-F0-9])[A-Fa-f0-9]{40}(?![a-fA-F0-9])',  # SHA1
+        r'(?<![a-fA-F0-9])[A-Fa-f0-9]{32}(?![a-fA-F0-9])'   # MD5
+    ]
+    found_hashes = set()
+    for pat in hash_patterns:
+        found_hashes.update(re.findall(pat, body))
+    for found_hash in found_hashes:
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+        vt_url = f"https://www.virustotal.com/api/v3/files/{found_hash}"
+        vt_resp = requests.get(vt_url, headers=headers)
+        if vt_resp.status_code == 200:
+            vt_json = vt_resp.json()
+            print("[VT BODY HASH REPORT]", vt_json)
+            data = vt_json['data']['attributes']['last_analysis_stats']
+            result = {
+                "detections": data['malicious'] + data['suspicious'],
+                "total": data['malicious'] + data['suspicious'] + data['undetected'] + data['harmless'],
+                "permalink": f"https://www.virustotal.com/gui/file/{found_hash}"
+            }
+        else:
+            result = {"error": "Hash not found in VirusTotal", "detections": 0, "total": 70}
+        scan_results.append({
+            'type': 'hash',
+            'target': found_hash,
+            'result': result
+        })
+    # Scan URLs in body
+    url_pattern = r'(https?://[\w\-\.\?\=\&\/%#]+)'
+    found_urls = re.findall(url_pattern, body)
+    for url in found_urls:
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
+        vt_url = f"https://www.virustotal.com/api/v3/urls"
+        vt_submit = requests.post(vt_url, headers=headers, data={"url": url})
+        if vt_submit.status_code == 200:
+            vt_id = vt_submit.json()['data']['id']
+            vt_report_url = f"https://www.virustotal.com/api/v3/urls/{vt_id}"
+            vt_report = requests.get(vt_report_url, headers=headers)
+            if vt_report.status_code == 200:
+                vt_json = vt_report.json()
+                print("[VT URL REPORT]", vt_json)
+                data = vt_json['data']['attributes']['last_analysis_stats']
+                result = {
+                    "detections": data['malicious'] + data['suspicious'],
+                    "total": data['malicious'] + data['suspicious'] + data['undetected'] + data['harmless'],
+                    "permalink": f"https://www.virustotal.com/gui/url/{vt_id}"
+                }
+            else:
+                result = {"error": "URL not found in VirusTotal", "detections": 0, "total": 70}
+        else:
+            result = {"error": "URL submit failed", "detections": 0, "total": 70}
+        scan_results.append({
+            'type': 'url',
+            'target': url,
+            'result': result
+        })
+    # Scan body as text file for sensitive data
+    import tempfile
+    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8', suffix='.txt') as tmp:
+        tmp.write(body)
+        tmp_path = tmp.name
+    result = scan_attachment_with_virustotal(tmp_path, f"email_{email_id}.txt")
+    scan_results.append({
+        'type': 'body_text',
+        'target': f"email_{email_id}.txt",
+        'result': result
+    })
+    # Normalize results and ensure numeric fields exist, then log
+    normalized = []
+    for item in scan_results:
+        r = item.get('result') or {}
+        detections = int(r.get('detections') or 0)
+        total = int(r.get('total') or 70)
+        permalink = r.get('permalink')
+        error = r.get('error') if r.get('error') else None
+        normalized.append({
+            'type': item.get('type'),
+            'target': item.get('target'),
+            'result': {
+                'detections': detections,
+                'total': total,
+                'permalink': permalink,
+                'error': error
+            }
+        })
+
+    print("[API SCAN RESPONSE]", normalized)
+    virustotal_scan_results.append({
+        'filename': email_id,
+        'result': normalized,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+    return jsonify(normalized)
+
+@app.route('/api/scan-url', methods=['POST'])
+@login_required
+def api_scan_url():
+    """Scan a single URL with VirusTotal."""
+    print("[API SCAN-URL] Request received")
+    data = request.get_json()
+    print(f"[API SCAN-URL] Request data: {data}")
+    url = data.get('url')
+    
+    if not url:
+        print("[API SCAN-URL] ERROR: No URL provided")
+        return jsonify({'error': 'URL required'}), 400
+    
+    print(f"[API SCAN-URL] Scanning URL: {url}")
+    
+    # Validate URL format
+    if not url.startswith(('http://', 'https://')):
+        print(f"[API SCAN-URL] ERROR: Invalid URL format")
+        return jsonify({'error': 'Invalid URL format. Must start with http:// or https://'}), 400
+    
+    result = scan_url_with_virustotal(url)
+    print(f"[API SCAN-URL] Result: {result}")
+    return jsonify(result)
+
+@app.route('/api/scan-urls', methods=['POST'])
+@login_required
+def api_scan_urls():
+    """Scan multiple URLs from an email."""
+    data = request.get_json()
+    email_id = data.get('email_id')
+    urls = data.get('urls', [])
+    
+    if not urls:
+        return jsonify({'error': 'No URLs provided'}), 400
+    
+    results = []
+    for url in urls:
+        if url.startswith(('http://', 'https://')):
+            result = scan_url_with_virustotal(url)
+            results.append(result)
+    
+    return jsonify({'scanned_urls': results})
+
+# --- VirusTotal Scan Results Dashboard Route ---
+from flask import render_template
+
+virustotal_scan_results = []  # Store recent scan results for dashboard
+
+@app.route('/virustotal-dashboard')
+@login_required
+def virustotal_dashboard():
+    # Show last 10 scan results
+    return render_template('virustotal_dashboard.html', scans=virustotal_scan_results[-10:])
+
+# Example usage: call scan_attachment_with_virustotal and append result
+def scan_and_store_result(file_path, filename):
+    result = scan_attachment_with_virustotal(file_path, filename)
+    virustotal_scan_results.append({
+        'filename': filename,
+        'result': result,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+    return result
 
 # 3. Setup Flask-Login
 login_manager = LoginManager()
@@ -145,10 +613,184 @@ def load_user(user_id):
         return User(user_id, data['accounts'])
     return None
 
-# ...existing code...
 
-# 5. NOW all your routes (after app is created!)
-# ...existing routes...
+# --- SANDBOX API ROUTES ---
+from flask import request, jsonify
+from flask_login import login_required
+
+@app.route('/api/sandbox_upload', methods=['POST'])
+@login_required
+def sandbox_upload():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+    
+    return jsonify({'filename': filename, 'message': 'Ready for sandbox analysis'})
+
+@app.route('/api/sandbox_analyze', methods=['POST'])
+@login_required
+def real_sandbox_analyze():
+    data = request.json
+    filename = data.get('filename')
+    if not filename:
+        return jsonify({'error': 'Filename required'}), 400
+    
+    host_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(host_path):
+        return jsonify({'error': 'File not found'}), 404
+    
+    container_path = f'/sandbox_volume/input/{filename}'
+    
+    try:
+        if docker_client is None:
+            return jsonify({'error': 'Docker daemon is not available. Please ensure Docker is running.'}), 503
+        
+        container = docker_client.containers.run(
+            'email-sandbox:1.0',
+            detach=True,
+            network_mode='none',
+            mem_limit='512m',
+            cpu_quota=50000,
+            remove=True,
+            volumes={app.config['SHARED_VOLUME_PATH']: {'bind': '/sandbox_volume', 'mode': 'rw'}}
+        )
+        
+        container.exec_run(f'chmod +x "{container_path}"')
+        
+        # Real execution with strace monitoring
+        container.exec_run(f'''
+        timeout 15s strace -f -e trace=file,network,process -o /sandbox_volume/strace.log "{container_path}" || true
+        ''')
+        
+        time.sleep(4)  # Allow execution to complete
+        
+        # Read real strace log
+        strace_result = container.exec_run('cat /sandbox_volume/strace.log')
+        strace_log = strace_result.output.decode('utf-8', errors='ignore')
+        
+        # Real behavior analysis
+        behaviors = []
+        log_lower = strace_log.lower()
+        if any(x in log_lower for x in ['open', 'write', 'creat', 'mkdir']):
+            behaviors.append('File creation/modification')
+        if any(x in log_lower for x in ['connect', 'socket', 'bind']):
+            behaviors.append('Network activity attempted (blocked)')
+        if 'execve' in log_lower:
+            behaviors.append('Process execution')
+        
+        verdict = 'malicious' if behaviors else 'clean'
+        
+        return jsonify({
+            'verdict': verdict,
+            'behaviors': behaviors,
+            'strace_sample': strace_log[-1500:],  # Last part for display
+            'full_log_lines': len(strace_log.splitlines())
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(host_path):
+            os.remove(host_path)  # Cleanup
+
+
+# --- Connect Real Email Route ---
+
+
+
+# /connect_email route using session for persistence
+@app.route('/connect_email', methods=['POST'])
+@login_required
+def connect_email():
+    email_addr = request.form['email'].strip()
+    password = request.form['password']
+    emails = []  # Reset
+    try:
+        mail = imaplib.IMAP4_SSL('imap.gmail.com')
+        mail.login(email_addr, password)
+        mail.select('inbox')
+        status, messages = mail.search(None, 'ALL')
+        email_ids = messages[0].split()
+        recent_ids = email_ids[-20:]
+        for num in recent_ids:
+            _, msg_data = mail.fetch(num, '(RFC822)')
+            raw_email = msg_data[0][1]
+            parsed = BytesParser(policy=policy.default).parsebytes(raw_email)
+            body = ""
+            if parsed.is_multipart():
+                for part in parsed.walk():
+                    if part.get_content_type() == 'text/plain':
+                        body = part.get_payload(decode=True).decode(errors='ignore')
+                        break
+            else:
+                body = parsed.get_payload(decode=True).decode(errors='ignore')
+            short_body = body[:300] + ('...' if len(body) > 300 else '')
+            email_data = {
+                'id': num.decode(),
+                'fromName': parsed.get('From', 'Unknown').split('<')[0].strip(' "'),
+                'subject': parsed.get('Subject', '(no subject)'),
+                'body': short_body,
+                'date': parsed.get('Date', 'Unknown'),
+                'score': 0,
+                'level': 'safe'
+            }
+            score_result = calculate_risk_score(email_data)
+            email_data.update(score_result)
+            emails.append(email_data)
+        mail.close()
+        mail.logout()
+        session['real_emails'] = emails  # Store in session for inbox route
+        flash('Successfully connected and loaded your inbox!', 'success')
+    except Exception as e:
+        flash('Connection failed: Check email or App Password', 'error')
+    return redirect('/inbox')
+
+# --- Inbox Route to Show Real Emails ---
+
+
+
+
+# /inbox route using session
+@app.route('/inbox')
+@login_required
+def inbox():
+    # Use fetch_emails with caching (much faster than separate IMAP call)
+    emails = fetch_emails(num_emails=20)
+    
+    # Filter out quarantined emails
+    quarantine = load_quarantine()
+    emails = [e for e in emails if e['id'] not in quarantine]
+    
+    return render_template('inbox.html', emails=emails)
+
+# --- Real Send Email Route ---
+@app.route('/send_email', methods=['POST'])
+@login_required
+def send_email():
+    config = session.get('email_config')
+    if not config:
+        flash('Connect email first!')
+        return redirect('/settings')
+    msg = EmailMessage()
+    msg['From'] = config['email']
+    msg['To'] = request.form['to']
+    msg['Subject'] = request.form['subject']
+    msg.set_content(request.form['body'])
+    try:
+        s = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        s.login(config['email'], config['pass'])
+        s.send_message(msg)
+        s.quit()
+        flash('Email sent successfully!')
+    except Exception as e:
+        flash(f'Send failed: {str(e)}')
+    return redirect('/inbox')
 
 # Add Account Route
 @app.route('/add-account', methods=['GET', 'POST'])
@@ -160,9 +802,12 @@ def add_account():
         host = request.form['imap_host']
         port = int(request.form['imap_port'])
 
+
         try:
+            print(f'[DEBUG] Attempting IMAP login: host={host}, port={port}, email={email}')
             mail = imaplib.IMAP4_SSL(host, port)
-            mail.login(email, password)
+            login_resp = mail.login(email, password)
+            print(f'[DEBUG] IMAP login response: {login_resp}')
             mail.logout()
 
             user_id = current_user.id
@@ -177,6 +822,7 @@ def add_account():
             session['active_email'] = email
 
         except Exception as e:
+            print(f'[ERROR] Failed to add account: {e}')
             flash(f'Failed to add account: {str(e)}', 'error')
 
         return redirect(url_for('settings'))
@@ -194,368 +840,7 @@ def switch_account():
         flash(f'Switched to {email}', 'success')
     return redirect(url_for('settings'))
 
-# Mock Email Data
-MOCK_EMAILS = [
-    {
-        "id": "1",
-        "from": "security@paypa1-secure.com",
-        "fromName": "PayPal Security Team",
-        "to": "user@example.com",
-        "subject": "URGENT: Your account has been limited - Action Required Immediately!",
-        "body": """<p>Dear Valued Customer,</p>
-        <p>We've noticed some <strong>unusual activity</strong> on your PayPal account. Your account access has been limited until you verify your information.</p>
-        <p><strong>Click here immediately to restore access:</strong> <a href="http://paypa1-secure.com/verify">http://paypa1-secure.com/verify</a></p>
-        <p>If you don't verify within 24 hours, your account will be permanently suspended.</p>
-        <p>Enter your login credentials and credit card information to verify your identity.</p>
-        <p>PayPal Security Team</p>""",
-        "date": "2024-01-15T09:23:00",
-        "attachments": [],
-        "riskScore": 95,
-        "riskLevel": "dangerous",
-        "threats": ["Spoofed domain (paypa1 vs paypal)", "Urgent language", "Suspicious link", "Requests sensitive info"],
-        "senderReputation": 5,
-        "domainAge": "2 days",
-        "isQuarantined": True
-    },
-    {
-        "id": "2",
-        "from": "invoice@supplier-billing.net",
-        "fromName": "Accounts Payable",
-        "to": "user@example.com",
-        "subject": "Invoice #INV-2024-0892 - Payment Required",
-        "body": """<p>Dear Customer,</p>
-        <p>Please find attached the invoice for your recent order. Payment is due within 7 days.</p>
-        <p>Invoice Amount: $4,299.00</p>
-        <p>Due Date: January 22, 2024</p>
-        <p>Please review the attached document and process payment accordingly.</p>
-        <p>Best regards,<br>Accounts Department</p>""",
-        "date": "2024-01-14T14:45:00",
-        "attachments": [
-            {"name": "Invoice_2024_0892.pdf.exe", "size": "245 KB", "type": "executable", "status": "malicious"}
-        ],
-        "riskScore": 88,
-        "riskLevel": "dangerous",
-        "threats": ["Malicious attachment (.exe disguised as .pdf)", "Unknown sender", "Financial urgency"],
-        "senderReputation": 15,
-        "domainAge": "14 days",
-        "isQuarantined": True
-    },
-    {
-        "id": "3",
-        "from": "noreply@amazon.com",
-        "fromName": "Amazon",
-        "to": "user@example.com",
-        "subject": "Your Amazon order #112-4567890-1234567 has shipped",
-        "body": """<p>Hello,</p>
-        <p>Great news! Your package is on its way.</p>
-        <p><strong>Order Details:</strong></p>
-        <ul>
-        <li>Wireless Bluetooth Headphones - Black</li>
-        <li>Estimated delivery: January 18-20, 2024</li>
-        </ul>
-        <p>Track your package: <a href="https://amazon.com/track/112-4567890">https://amazon.com/track/112-4567890</a></p>
-        <p>Thank you for shopping with us!</p>""",
-        "date": "2024-01-14T11:30:00",
-        "attachments": [],
-        "riskScore": 12,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 98,
-        "domainAge": "28 years",
-        "isQuarantined": False
-    },
-    {
-        "id": "4",
-        "from": "hr@company-careers.biz",
-        "fromName": "HR Department",
-        "to": "user@example.com",
-        "subject": "Job Offer - Senior Developer Position - $150k/year",
-        "body": """<p>Congratulations!</p>
-        <p>After reviewing your resume, we are pleased to offer you a position as Senior Developer with an annual salary of $150,000.</p>
-        <p>To proceed with the hiring process, please provide:</p>
-        <ul>
-        <li>Copy of your passport</li>
-        <li>Bank account details for salary deposit</li>
-        <li>Social Security Number</li>
-        </ul>
-        <p>Reply to this email with the requested documents within 48 hours to secure your position.</p>
-        <p>HR Department</p>""",
-        "date": "2024-01-13T16:20:00",
-        "attachments": [
-            {"name": "Job_Offer_Letter.docm", "size": "89 KB", "type": "macro-enabled", "status": "suspicious"}
-        ],
-        "riskScore": 82,
-        "riskLevel": "dangerous",
-        "threats": ["Unsolicited job offer", "Requests sensitive personal info", "Macro-enabled document", "Suspicious domain"],
-        "senderReputation": 8,
-        "domainAge": "5 days",
-        "isQuarantined": True
-    },
-    {
-        "id": "5",
-        "from": "notifications@github.com",
-        "fromName": "GitHub",
-        "to": "user@example.com",
-        "subject": "[GitHub] A new security advisory affects your repositories",
-        "body": """<p>Hi there,</p>
-        <p>A new security vulnerability has been identified that may affect one or more of your repositories.</p>
-        <p><strong>Advisory:</strong> CVE-2024-1234 - Critical vulnerability in lodash</p>
-        <p><strong>Affected repositories:</strong></p>
-        <ul>
-        <li>my-awesome-project</li>
-        </ul>
-        <p>We recommend updating the affected dependency as soon as possible.</p>
-        <p>View the advisory: <a href="https://github.com/advisories/CVE-2024-1234">https://github.com/advisories/CVE-2024-1234</a></p>
-        <p>Thanks,<br>The GitHub Security Team</p>""",
-        "date": "2024-01-13T09:15:00",
-        "attachments": [],
-        "riskScore": 8,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 99,
-        "domainAge": "16 years",
-        "isQuarantined": False
-    },
-    {
-        "id": "6",
-        "from": "support@micros0ft-security.com",
-        "fromName": "Microsoft Support",
-        "to": "user@example.com",
-        "subject": "Your Microsoft 365 subscription will be cancelled",
-        "body": """<p>Dear User,</p>
-        <p>We were unable to process your payment for Microsoft 365. Your subscription will be cancelled in 24 hours unless you update your payment information.</p>
-        <p>Update your payment now: <a href="http://micros0ft-security.com/billing">http://micros0ft-security.com/billing</a></p>
-        <p>Your current payment method: Visa ending in ****1234</p>
-        <p>To avoid service interruption, please update your credit card information immediately.</p>
-        <p>Microsoft Support Team</p>""",
-        "date": "2024-01-12T18:45:00",
-        "attachments": [],
-        "riskScore": 91,
-        "riskLevel": "dangerous",
-        "threats": ["Spoofed domain (micros0ft vs microsoft)", "Urgency tactics", "Phishing link", "Payment scam"],
-        "senderReputation": 3,
-        "domainAge": "1 day",
-        "isQuarantined": True
-    },
-    {
-        "id": "7",
-        "from": "newsletter@techcrunch.com",
-        "fromName": "TechCrunch",
-        "to": "user@example.com",
-        "subject": "This Week in Tech: AI Breakthroughs and Startup News",
-        "body": """<p>Hi there,</p>
-        <p>Here's your weekly roundup of the biggest tech stories:</p>
-        <ul>
-        <li><strong>OpenAI announces GPT-5</strong> - The next generation of AI is here</li>
-        <li><strong>Tesla's new robotaxi</strong> - First look at the autonomous vehicle</li>
-        <li><strong>Startup funding hits record</strong> - $50B invested in Q4 2023</li>
-        </ul>
-        <p>Read more at <a href="https://techcrunch.com">techcrunch.com</a></p>
-        <p>Unsubscribe: <a href="https://techcrunch.com/unsubscribe">Manage preferences</a></p>""",
-        "date": "2024-01-12T10:00:00",
-        "attachments": [],
-        "riskScore": 5,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 95,
-        "domainAge": "18 years",
-        "isQuarantined": False
-    },
-    {
-        "id": "8",
-        "from": "admin@university.edu",
-        "fromName": "University IT Department",
-        "to": "user@example.com",
-        "subject": "Important: Email System Maintenance Notice",
-        "body": """<p>Dear Faculty/Staff,</p>
-        <p>The IT Department will be performing scheduled maintenance on the email system this weekend.</p>
-        <p><strong>Maintenance Window:</strong></p>
-        <ul>
-        <li>Date: Saturday, January 20, 2024</li>
-        <li>Time: 2:00 AM - 6:00 AM EST</li>
-        </ul>
-        <p>During this time, email services may be temporarily unavailable. Please plan accordingly.</p>
-        <p>If you have any questions, contact the IT Help Desk at helpdesk@university.edu</p>
-        <p>Thank you for your patience.</p>""",
-        "date": "2024-01-11T14:30:00",
-        "attachments": [],
-        "riskScore": 10,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 92,
-        "domainAge": "25 years",
-        "isQuarantined": False
-    },
-    {
-        "id": "9",
-        "from": "winner@lottery-intl.org",
-        "fromName": "International Lottery Commission",
-        "to": "user@example.com",
-        "subject": "CONGRATULATIONS! You've Won $5,000,000 USD!!!",
-        "body": """<p>DEAR LUCKY WINNER,</p>
-        <p>We are pleased to inform you that your email address was selected in our INTERNATIONAL LOTTERY DRAW held on January 10, 2024.</p>
-        <p><strong>WINNING AMOUNT: $5,000,000.00 USD</strong></p>
-        <p>To claim your prize, please provide the following information:</p>
-        <ul>
-        <li>Full Name</li>
-        <li>Address</li>
-        <li>Phone Number</li>
-        <li>Bank Account Number</li>
-        <li>Copy of ID</li>
-        </ul>
-        <p>Processing fee: $500 (refundable from winnings)</p>
-        <p>Contact our claims agent immediately!</p>""",
-        "date": "2024-01-11T08:15:00",
-        "attachments": [],
-        "riskScore": 98,
-        "riskLevel": "dangerous",
-        "threats": ["Lottery scam", "Requests personal/financial info", "Advance fee fraud", "ALL CAPS subject"],
-        "senderReputation": 1,
-        "domainAge": "3 days",
-        "isQuarantined": True
-    },
-    {
-        "id": "10",
-        "from": "team@slack.com",
-        "fromName": "Slack",
-        "to": "user@example.com",
-        "subject": "New message from John in #general",
-        "body": """<p>Hi there,</p>
-        <p>You have a new message in Slack:</p>
-        <blockquote>
-        <p><strong>John Smith</strong> in <strong>#general</strong>:</p>
-        <p>"Hey team, can we schedule a quick sync for the project update? How does 3pm today work?"</p>
-        </blockquote>
-        <p><a href="https://slack.com/app">Reply in Slack</a></p>
-        <p>You're receiving this email because you have notifications enabled.</p>""",
-        "date": "2024-01-10T15:45:00",
-        "attachments": [],
-        "riskScore": 6,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 97,
-        "domainAge": "15 years",
-        "isQuarantined": False
-    },
-    {
-        "id": "11",
-        "from": "billing@netflix-payment.support",
-        "fromName": "Netflix Billing",
-        "to": "user@example.com",
-        "subject": "Payment Failed - Update your payment method",
-        "body": """<p>Hi,</p>
-        <p>We couldn't process your payment for Netflix Premium ($19.99/month).</p>
-        <p>Your current card: 4532-****-****-7890</p>
-        <p>Please update your payment details within 48 hours or your account will be suspended:</p>
-        <p><a href="http://netflix-payment.support/update">Update Payment Method</a></p>
-        <p>For security, please have your credit card ready when updating.</p>
-        <p>Netflix Support</p>""",
-        "date": "2024-01-10T12:30:00",
-        "attachments": [],
-        "riskScore": 87,
-        "riskLevel": "dangerous",
-        "threats": ["Fake Netflix domain", "Payment phishing", "Urgency tactics", "Partial card number bait"],
-        "senderReputation": 7,
-        "domainAge": "6 days",
-        "isQuarantined": True
-    },
-    {
-        "id": "12",
-        "from": "john.smith@colleague-mail.com",
-        "fromName": "John Smith (CEO)",
-        "to": "user@example.com",
-        "subject": "Quick favor needed - Urgent",
-        "body": """<p>Hi,</p>
-        <p>I'm in a meeting and can't talk right now. I need you to do me a quick favor.</p>
-        <p>Can you purchase some gift cards for client appreciation? I need 5x $200 Amazon gift cards.</p>
-        <p>Buy them and send me the redemption codes via email. I'll reimburse you when I'm back.</p>
-        <p>This is urgent - please handle ASAP.</p>
-        <p>Thanks,<br>John Smith<br>CEO</p>""",
-        "date": "2024-01-09T16:20:00",
-        "attachments": [],
-        "riskScore": 79,
-        "riskLevel": "warning",
-        "threats": ["CEO impersonation", "Gift card scam", "Urgency pressure", "Unusual request"],
-        "senderReputation": 20,
-        "domainAge": "10 days",
-        "isQuarantined": False
-    },
-    {
-        "id": "13",
-        "from": "docs@google.com",
-        "fromName": "Google Docs",
-        "to": "user@example.com",
-        "subject": "Bilal shared a document with you: Q4 Report",
-        "body": """<p>46473@students.riphah.edu.pk shared a document with you:</p>
-        <p><strong>Q4 Financial Report 2023</strong></p>
-        <p>Click to open: <a href="https://docs.google.com/document/d/abc123">Open in Google Docs</a></p>
-        <p>Note from Bilal: "Please review before tomorrow's meeting"</p>
-        <p>Google LLC, 1600 Amphitheatre Parkway, Mountain View, CA 94043</p>""",
-        "date": "2024-01-09T11:00:00",
-        "attachments": [],
-        "riskScore": 15,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 99,
-        "domainAge": "26 years",
-        "isQuarantined": False
-    },
-    {
-        "id": "14",
-        "from": "finance@client-company.com",
-        "fromName": "Finance Department",
-        "to": "user@example.com",
-        "subject": "Wire Transfer Confirmation - $25,000",
-        "body": """<p>Dear Partner,</p>
-        <p>This email confirms the wire transfer request we discussed on the phone.</p>
-        <p><strong>Transfer Details:</strong></p>
-        <ul>
-        <li>Amount: $25,000.00 USD</li>
-        <li>Account: 1234567890</li>
-        <li>Routing: 021000021</li>
-        <li>Reference: INV-2024-001</li>
-        </ul>
-        <p>Please process this transfer today. The attached document contains banking details.</p>
-        <p>Finance Department</p>""",
-        "date": "2024-01-08T09:45:00",
-        "attachments": [
-            {"name": "Banking_Details.zip", "size": "156 KB", "type": "archive", "status": "suspicious"}
-        ],
-        "riskScore": 75,
-        "riskLevel": "warning",
-        "threats": ["Suspicious wire transfer request", "Compressed attachment", "Financial urgency", "No prior contact"],
-        "senderReputation": 35,
-        "domainAge": "45 days",
-        "isQuarantined": False
-    },
-    {
-        "id": "15",
-        "from": "delivery@fedex.com",
-        "fromName": "FedEx Delivery",
-        "to": "user@example.com",
-        "subject": "Your package is scheduled for delivery tomorrow",
-        "body": """<p>Hello,</p>
-        <p>Your FedEx package is scheduled for delivery tomorrow between 9 AM - 5 PM.</p>
-        <p><strong>Tracking Number:</strong> 7891234567890</p>
-        <p><strong>Delivery Address:</strong> 123 Main Street</p>
-        <p>Track your package: <a href="https://fedex.com/track?id=7891234567890">View Tracking Details</a></p>
-        <p>Delivery options:</p>
-        <ul>
-        <li>Leave at door</li>
-        <li>Hold at FedEx location</li>
-        <li>Reschedule delivery</li>
-        </ul>
-        <p>Thank you for choosing FedEx.</p>""",
-        "date": "2024-01-08T07:30:00",
-        "attachments": [],
-        "riskScore": 8,
-        "riskLevel": "safe",
-        "threats": [],
-        "senderReputation": 96,
-        "domainAge": "30 years",
-        "isQuarantined": False
-    }
-]
+
 
 # Activity Log
 activity_log = []
@@ -643,27 +928,7 @@ def detect_sensitive_data(text):
     
     return findings
 
-# Mock encryption functions
-def mock_encrypt_aes(plaintext):
-    # Simulate AES-256-GCM encryption
-    key = os.urandom(32)
-    iv = os.urandom(12)
-    encrypted = base64.b64encode(plaintext.encode()).decode()
-    return {
-        "ciphertext": encrypted,
-        "iv": base64.b64encode(iv).decode(),
-        "key": base64.b64encode(key).decode(),
-        "algorithm": "AES-256-GCM"
-    }
 
-def mock_sign_rsa(message):
-    # Simulate RSA-2048 signing
-    signature = hashlib.sha256(message.encode()).hexdigest()
-    return {
-        "signature": signature,
-        "algorithm": "RSA-2048-SHA256",
-        "publicKey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhki...(mock)...IDAQAB\n-----END PUBLIC KEY-----"
-    }
 
 # Routes
 @app.route('/')
@@ -673,19 +938,20 @@ def landing():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        # Remove any demo_mode logic
-        session.pop('demo_mode', None)  # Remove any old demo flag
 
-        # Always try real IMAP login
+
 
         email = request.form['email']
-        # Use 'app_password' from form for IMAP config, fallback to 'password' for legacy
         app_password = request.form.get('app_password', request.form.get('password'))
         password = app_password
         host = request.form['imap_host']
-        port = int(request.form['imap_port'])
+        port_raw = request.form.get('imap_port', '').strip()
+        try:
+            port = int(port_raw) if port_raw else 993
+        except ValueError:
+            flash('Invalid IMAP port. Please enter a valid number (e.g., 993 for Gmail).', 'error')
+            return redirect(url_for('login'))
 
-        # Store IMAP config in session for fetch_real_emails
         session['imap_config'] = {
             'host': host,
             'email': email,
@@ -696,11 +962,9 @@ def login():
             mail = imaplib.IMAP4_SSL(host, port)
             mail.login(email, password)
             mail.logout()
-            # Multi-account logic
-            user_id = "user_1"  # For single user demo — or use email hash for multi-user
+            user_id = "user_1"
             if user_id not in users_db:
                 users_db[user_id] = {'accounts': []}
-
             user_accounts = users_db[user_id]['accounts']
             account_exists = any(a['email'] == email for a in user_accounts)
             if not account_exists:
@@ -710,16 +974,11 @@ def login():
                     'port': port
                 }
                 user_accounts.append(new_account)
-                flash(f'New account added: {email}', 'success')
-            else:
-                flash(f'Account already connected: {email}', 'info')
-
             session[f'password_{email}'] = password
             session['active_email'] = email
-
             user = User(user_id, user_accounts)
             login_user(user)
-            session['alerts'] = []  # Clear any mock alerts — start fresh
+            session['alerts'] = []
             session['settings'] = {
                 'auto_quarantine': True,
                 'block_executables': True,
@@ -729,7 +988,6 @@ def login():
                 'quarantine_notify': True,
                 'weekly_report': True,
             }
-            flash('Live connection established! Scanning inbox...', 'success')
             return redirect(url_for('dashboard'))
         except Exception as e:
             flash(f'Connection failed: {str(e)}. Use correct App Password!', 'error')
@@ -747,7 +1005,14 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    emails = fetch_emails(num_emails=20)
+    emails = fetch_emails(num_emails=20)  # Reduced from 50 to 20
+    
+    # Load quarantined emails from persistent storage
+    quarantine_data = load_quarantine()
+    quarantined_list = list(quarantine_data.values())
+    quarantined_count = len(quarantine_data)
+    
+    # Calculate stats (total = only inbox emails)
     total = len(emails)
     safe = len([e for e in emails if e['riskLevel'] == 'safe'])
     warning = len([e for e in emails if e['riskLevel'] == 'warning'])
@@ -756,7 +1021,7 @@ def dashboard():
     stats = {
         'total_scanned': total,
         'threats_blocked': dangerous,
-        'quarantined': len([e for e in emails if e.get('isQuarantined', False)]),
+        'quarantined': quarantined_count,
         'safe_emails': safe,
     }
 
@@ -766,45 +1031,76 @@ def dashboard():
         'dangerous': dangerous
     }
 
-    return render_template('dashboard.html', emails=emails[:6], stats=stats, risk_distribution=risk_distribution)
+    return render_template('dashboard.html', emails=emails[:6], stats=stats, risk_distribution=risk_distribution, quarantined=quarantined_list[:5])
 
-@app.route('/inbox')
-@login_required
-def inbox():
-    emails = fetch_emails(num_emails=50)  # Auto-fetch
-    return render_template('inbox.html', emails=emails)
 
 @app.route('/email/<email_id>')
 @login_required
 def email_detail(email_id):
-    # email = next((e for e in MOCK_EMAILS if e['id'] == email_id), None)  # ← Comment this
-    emails = fetch_emails(num_emails=30)  # ← Use this
-    email = next((e for e in emails if e['id'] == email_id), None)
+    # Get email from fetch_emails (use cache from dashboard/inbox if available)
+    emails = fetch_emails(num_emails=20)  # Reduced from 50 to 20
+    email = next((e for e in emails if e.get('id') == email_id), None)
+    
     if not email:
         flash('Email not found', 'error')
         return redirect(url_for('inbox'))
-    return render_template('email_detail.html', email=email)
+    
+    # URLs were extracted during inbox fetch, now scan them on detail page
+    scanned_urls = email.get('scanned_urls', [])
+    
+    # If no scanned URLs, extract and scan them now
+    if not scanned_urls or len(scanned_urls) == 0:
+        urls = email.get('urls', [])
+        print(f"[EMAIL DETAIL] Found {len(urls)} URLs to scan: {urls}")
+        
+        for url in urls:
+            try:
+                result = scan_url_with_virustotal(url)
+                scanned_urls.append(result)
+                print(f"[EMAIL DETAIL] Scanned {url}: {result.get('verdict')}")
+            except Exception as e:
+                print(f"[EMAIL DETAIL] Error scanning {url}: {e}")
+    
+    print(f"[EMAIL DETAIL] Processing email {email_id} with {len(scanned_urls)} scanned URLs")
+    return render_template('email_detail.html', email=email, scanned_urls=scanned_urls)
 
     # --- Email Actions ---
-    @app.route('/email/<email_id>/quarantine', methods=['POST'])
-    @login_required
-    def quarantine_email(email_id):
-        emails = fetch_emails(num_emails=30)
-        email = next((e for e in emails if e['id'] == email_id), None)
-        if email:
-            email['isQuarantined'] = True
-            flash('Email moved to quarantine.', 'success')
-        return redirect(url_for('email_detail', email_id=email_id))
+@app.route('/email/<email_id>/quarantine', methods=['POST'])
+@login_required
+def quarantine_email(email_id):
+    """Move an email to quarantine."""
+    try:
+        # Get email data from form
+        email_data = {
+            'id': email_id,
+            'subject': request.form.get('subject', ''),
+            'from': request.form.get('from', ''),
+            'fromName': request.form.get('fromName', ''),
+            'date': request.form.get('date', '')
+        }
+        print(f"[QUARANTINE] Quarantining email {email_id}: {email_data}")
+        add_to_quarantine(email_id, email_data, risk_score=95)
+        print(f"[QUARANTINE] Email {email_id} successfully moved to quarantine")
+        flash('Email moved to quarantine.', 'success')
+    except Exception as e:
+        print(f"[QUARANTINE ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Error quarantining email: {e}', 'error')
+    
+    return redirect(url_for('inbox'))
 
-    @app.route('/email/<email_id>/restore', methods=['POST'])
-    @login_required
-    def restore_email(email_id):
-        emails = fetch_emails(num_emails=30)
-        email = next((e for e in emails if e['id'] == email_id), None)
-        if email:
-            email['isQuarantined'] = False
-            flash('Email restored to inbox.', 'success')
-        return redirect(url_for('email_detail', email_id=email_id))
+@app.route('/email/<email_id>/restore', methods=['POST'])
+@login_required
+def restore_email(email_id):
+    """Restore an email from quarantine to inbox."""
+    try:
+        remove_from_quarantine(email_id)
+        flash('Email restored to inbox.', 'success')
+    except Exception as e:
+        flash(f'Error restoring email: {e}', 'error')
+    
+    return redirect(url_for('quarantine'))
 
     @app.route('/email/<email_id>/delete', methods=['POST'])
     @login_required
@@ -900,11 +1196,7 @@ def compose():
             "sensitiveData": detect_sensitive_data(content)
         }
         
-        if encrypt:
-            result["encryption"] = mock_encrypt_aes(content)
-        
-        if sign:
-            result["signature"] = mock_sign_rsa(content)
+
         
         if self_destruct:
             result["selfDestruct"] = {
@@ -928,8 +1220,8 @@ def alerts():
 @app.route('/quarantine')
 @login_required
 def quarantine():
-    emails = fetch_emails(num_emails=50)
-    quarantined = [e for e in emails if e.get('isQuarantined', False)]
+    quarantine_data = load_quarantine()
+    quarantined = list(quarantine_data.values())
     return render_template('quarantine.html', emails=quarantined)
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -1022,14 +1314,66 @@ import imaplib
 import email as py_email
 from email.header import decode_header
 
+# --- Real-time IMAP IDLE Listener ---
+import threading
+import time
+
+def idle_scan_emails(imap_host, imap_port, username, password, scan_callback):
+    """
+    Connects to IMAP and listens for new emails using IDLE. Calls scan_callback(msg) on new mail.
+    """
+    import imapclient
+    from imapclient import IMAPClient
+    try:
+        with IMAPClient(imap_host, port=int(imap_port), ssl=True) as server:
+            server.login(username, password)
+            server.select_folder('INBOX')
+            print("[IMAP IDLE] Listening for new emails...")
+            while True:
+                # Wait for up to 5 minutes for new mail
+                responses = server.idle_check(timeout=300)
+                if responses:
+                    for response in responses:
+                        if response[1] == b'EXISTS':
+                            # New email arrived
+                            messages = server.search(['UNSEEN'])
+                            for uid in messages:
+                                msg_data = server.fetch([uid], ['RFC822'])
+                                raw_email = msg_data[uid][b'RFC822']
+                                msg = py_email.message_from_bytes(raw_email)
+                                scan_callback(msg)
+                server.idle_done()
+                server.idle()
+    except Exception as e:
+        print(f"[IMAP IDLE] Error: {e}")
+
+# Example scan callback
+def example_scan_callback(msg):
+    subject, encoding = decode_header(msg["Subject"])[0]
+    if isinstance(subject, bytes):
+        subject = subject.decode(encoding or "utf-8", errors="ignore")
+    print(f"[SCAN] New email: {subject}")
+
+# To start real-time scan in background (example):
+# threading.Thread(target=idle_scan_emails, args=(host, port, user, pwd, example_scan_callback), daemon=True).start()
+
 # Function to fetch emails from IMAP server
 def fetch_emails(imap_host, imap_port, username, password, num_emails=10):
     try:
         mail = imaplib.IMAP4_SSL(imap_host, int(imap_port))
         mail.login(username, password)
-        mail.select("inbox")
+        # Try both 'INBOX' and 'inbox' for compatibility
+        resp, _ = mail.select('INBOX')
+        if resp != 'OK':
+            resp, _ = mail.select('inbox')
+            if resp != 'OK':
+                raise Exception('Could not select INBOX. IMAP response: ' + str(resp))
         status, messages = mail.search(None, "ALL")
+        if status != 'OK':
+            raise Exception('IMAP search failed: ' + str(status))
         email_ids = messages[0].split()[-num_emails:]
+        if not email_ids:
+            print('[DEBUG] No emails found in mailbox.')
         emails = []
         for email_id in email_ids:
             status, msg_data = mail.fetch(email_id, "(RFC822)")
@@ -1066,6 +1410,7 @@ def fetch_emails(imap_host, imap_port, username, password, num_emails=10):
         mail.logout()
         return emails
     except Exception as e:
+        print(f'[ERROR] IMAP fetch_emails: {e}')
         return {"error": str(e)}
 
 # API route to fetch emails from IMAP
@@ -1094,6 +1439,17 @@ def fetch_emails(num_emails=50):
     host = getattr(current_user, 'imap_host', 'imap.gmail.com')
     port = getattr(current_user, 'imap_port', 993)
 
+    # *** OPTIMIZATION: Check session cache first (cache for 30 seconds) ***
+    import time
+    cache_key = f'emails_cache_{active_email}'
+    timestamp_key = f'emails_cache_time_{active_email}'
+    
+    if cache_key in session and timestamp_key in session:
+        cache_age = time.time() - session.get(timestamp_key, 0)
+        if cache_age < 30:  # Use cache if less than 30 seconds old
+            print(f"[CACHE HIT] Using cached emails (age: {cache_age:.1f}s)")
+            return session[cache_key]
+    
     print(f"Starting fetch for {active_email}...")
 
     try:
@@ -1146,16 +1502,88 @@ def fetch_emails(num_emails=50):
                     if payload:
                         body = payload.decode(errors='ignore')
 
+                # Extract attachments
+                attachments = []
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_disposition() == "attachment":
+                            filename = part.get_filename()
+                            if filename:
+                                try:
+                                    # Decode filename if needed
+                                    decoded = decode_header(filename)
+                                    filename = decoded[0][0]
+                                    if isinstance(filename, bytes):
+                                        filename = filename.decode(decoded[0][1] or 'utf-8', errors='ignore')
+                                    
+                                    # Get size and content type
+                                    payload_data = part.get_payload(decode=True)
+                                    file_size = len(payload_data) if payload_data else 0
+                                    file_size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "Unknown"
+                                    content_type = part.get_content_type()
+                                    
+                                    # Save to disk for later analysis
+                                    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                                    with open(filepath, 'wb') as f:
+                                        f.write(payload_data)
+                                    
+                                    attachments.append({
+                                        'id': f"att_{eid.decode()}_{len(attachments)}",
+                                        'name': filename,
+                                        'size': file_size_str,
+                                        'type': content_type,
+                                        'filepath': filepath,
+                                        'analyzed': False,
+                                        'status': 'unknown',  # Will be set by VT scan
+                                        'behaviors': []
+                                    })
+                                except Exception as att_err:
+                                    print(f"Error processing attachment {filename}: {att_err}")
+                                    continue
+
                 # Basic risk scoring
                 risk_score = 10
                 risk_level = "safe"
                 lower_body = body.lower() + subject.lower()
+                
+                # Check for suspicious keywords
                 if any(word in lower_body for word in ["urgent", "payment", "verify", "click here", "password"]):
                     risk_score = 75
                     risk_level = "warning"
                 if "exe" in body.lower() or "invoice" in subject.lower():
                     risk_score = 95
                     risk_level = "dangerous"
+                
+                # Check for suspicious attachment extensions
+                suspicious_extensions = ['.exe', '.bat', '.scr', '.vbs', '.js', '.cmd', '.zip', '.rar']
+                for att in attachments:
+                    att_name_lower = att['name'].lower()
+                    if any(att_name_lower.endswith(ext) for ext in suspicious_extensions):
+                        risk_score = max(risk_score, 85)
+                        if att_name_lower.endswith(('.exe', '.bat', '.scr', '.vbs', '.cmd')):
+                            risk_score = 95
+                            risk_level = "dangerous"
+                        else:
+                            risk_level = "warning" if risk_level == "safe" else risk_level
+
+                # Extract URLs from email body and subject
+                urls = extract_urls_from_text(body + ' ' + subject)
+                
+                # Don't scan URLs here - too slow! They'll be scanned on email detail page
+                scanned_urls = []
+                
+                # Flag suspicious URLs
+                suspicious_urls = []
+                for url in urls:
+                    # Quick local checks (no API calls)
+                    url_lower = url.lower()
+                    if any(word in url_lower for word in ['bit.ly', 'tinyurl', 'short.link', 'goo.gl']):
+                        suspicious_urls.append({'url': url, 'reason': 'Shortened URL (potential phishing)'})
+                        risk_score = max(risk_score, 60)
+                    elif not url.lower().startswith(('https://', 'http://')):
+                        suspicious_urls.append({'url': url, 'reason': 'Missing protocol'})
+                        risk_score = max(risk_score, 50)
 
                 fetched_emails.append({
                     "id": eid.decode(),
@@ -1163,10 +1591,14 @@ def fetch_emails(num_emails=50):
                     "fromName": email.utils.parseaddr(from_header)[0] or "Unknown",
                     "subject": subject,
                     "body": body[:300] + "..." if len(body) > 300 else body,
+                    "full_body": body,  # STORE FULL BODY
                     "date": date_header,
+                    "scanned_urls": scanned_urls,  # ATTACH SCANNED URLs
                     "riskScore": risk_score,
                     "riskLevel": risk_level,
-                    "attachments": [],  # Add later with VT
+                    "attachments": attachments,
+                    "urls": urls,
+                    "suspiciousUrls": suspicious_urls,
                     "isQuarantined": risk_level == "dangerous" and session.get('settings', {}).get('auto_quarantine', True),
                     "isRead": False,
                 })
@@ -1177,7 +1609,13 @@ def fetch_emails(num_emails=50):
 
         mail.logout()
         print(f"Fetched {len(fetched_emails)} emails successfully")
-        flash(f"Scan complete! Found {len(fetched_emails)} emails", "success")
+        
+        # *** OPTIMIZATION: Cache the results for 30 seconds ***
+        import time
+        session[f'emails_cache_{active_email}'] = fetched_emails
+        session[f'emails_cache_time_{active_email}'] = time.time()
+        session.modified = True
+        
         return fetched_emails
 
     except Exception as e:
@@ -1194,7 +1632,7 @@ from flask import session
 
 def fetch_real_emails():
     if 'imap_config' not in session:
-        return []  # fallback to empty or mock if needed temporarily
+        return []
     config = session['imap_config']
     emails_list = []
     try:
@@ -1232,7 +1670,6 @@ def fetch_real_emails():
         mail.logout()
     except Exception as e:
         print(f"IMAP Error: {e}")
-        # fallback to mock if connection fails
     return emails_list
 
 @app.route('/scan')

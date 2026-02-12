@@ -10,7 +10,9 @@ import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
 export default function QuarantinePage() {
-  const { emails, restoreEmail, deleteEmail } = useAppStore()
+  const emails = useAppStore((state) => state.emails)
+  const restoreEmail = useAppStore((state) => state.restoreEmail)
+  const deleteEmail = useAppStore((state) => state.deleteEmail)
   const { toast } = useToast()
 
   const quarantinedEmails = emails.filter((e) => e.isQuarantined)

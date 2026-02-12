@@ -1,48 +1,9 @@
-export interface Email {
-  id: string
-  from: string
-  fromName: string
-  to: string
-  subject: string
-  body: string
-  date: string
-  isRead: boolean
-  riskScore: number
-  riskLevel: "safe" | "warning" | "dangerous"
-  attachments: Attachment[]
-  flags: string[]
-  senderReputation: number
-  domainAge: string
-  domainReputation: "trusted" | "neutral" | "suspicious"
-  suspiciousLinks: SuspiciousLink[]
-  isQuarantined: boolean
-  sensitiveData: string[]
-}
-
-export interface Attachment {
-  id: string
-  name: string
-  size: string
-  type: string
-  analyzed: boolean
-  verdict?: "clean" | "suspicious" | "malicious"
-  behaviors?: string[]
-}
-
-export interface SuspiciousLink {
-  url: string
-  reason: string
-  isMalicious: boolean
-}
-
-export interface Alert {
-  id: string
-  timestamp: string
-  type: "phishing" | "malware" | "spam" | "data_leak" | "spoofing"
-  severity: "low" | "medium" | "high" | "critical"
-  message: string
-  emailId?: string
-  action: string
+// Only type/interface definitions remain. All mock/sample data removed.
+type: "phishing" | "malware" | "spam" | "data_leak" | "spoofing"
+severity: "low" | "medium" | "high" | "critical"
+message: string
+emailId ?: string
+action: string
 }
 
 export const mockEmails: Email[] = [
@@ -50,89 +11,6 @@ export const mockEmails: Email[] = [
     id: "1",
     from: "security@paypa1-verify.com",
     fromName: "PayPal Security",
-    to: "user@example.com",
-    subject: "⚠️ URGENT: Your account has been limited - Verify Now!",
-    body: `Dear Valued Customer,
-
-We have noticed unusual activity on your PayPal account. Your account has been temporarily limited until you verify your identity.
-
-Please click the link below to verify your account immediately:
-https://paypa1-secure-login.com/verify?id=abc123
-
-If you don't verify within 24 hours, your account will be permanently suspended.
-
-URGENT ACTION REQUIRED!
-
-Best regards,
-PayPal Security Team
-
-This is an automated message. Please do not reply.`,
-    date: "2024-01-15T10:30:00Z",
-    isRead: false,
-    riskScore: 95,
-    riskLevel: "dangerous",
-    attachments: [],
-    flags: ["phishing", "urgent_language", "spoofed_sender", "suspicious_link"],
-    senderReputation: 5,
-    domainAge: "2 days",
-    domainReputation: "suspicious",
-    suspiciousLinks: [
-      {
-        url: "https://paypa1-secure-login.com/verify?id=abc123",
-        reason: "Domain spoofing (paypa1 vs paypal)",
-        isMalicious: true,
-      },
-    ],
-    isQuarantined: true,
-    sensitiveData: [],
-  },
-  {
-    id: "2",
-    from: "hr@company-updates.net",
-    fromName: "HR Department",
-    to: "user@example.com",
-    subject: "Important: Q4 Salary Revision Document",
-    body: `Hi Team,
-
-Please find attached the Q4 salary revision document. This contains important updates about your compensation.
-
-Please review and sign the document by end of day.
-
-Thanks,
-HR Team`,
-    date: "2024-01-15T09:15:00Z",
-    isRead: false,
-    riskScore: 85,
-    riskLevel: "dangerous",
-    attachments: [
-      {
-        id: "att1",
-        name: "Q4_Salary_Revision.pdf.exe",
-        size: "2.4 MB",
-        type: "application/x-msdownload",
-        analyzed: true,
-        verdict: "malicious",
-        behaviors: [
-          "Attempts to modify system registry",
-          "Tries to access C:\\Windows\\System32",
-          "Creates persistence mechanism in startup",
-          "Attempts to disable Windows Defender",
-          "Connects to known C2 server: 185.234.XX.XX",
-        ],
-      },
-    ],
-    flags: ["malware", "disguised_extension", "suspicious_domain"],
-    senderReputation: 15,
-    domainAge: "14 days",
-    domainReputation: "suspicious",
-    suspiciousLinks: [],
-    isQuarantined: true,
-    sensitiveData: [],
-  },
-  {
-    id: "3",
-    from: "noreply@amazon.com",
-    fromName: "Amazon",
     to: "user@example.com",
     subject: "Your Amazon order #112-4567890 has shipped",
     body: `Hello,
@@ -608,60 +486,6 @@ export const mockAlerts: Alert[] = [
     message: "Malicious attachment detected: Q4_Salary_Revision.pdf.exe",
     emailId: "2",
     action: "Attachment blocked, email quarantined",
-  },
-  {
-    id: "alert3",
-    timestamp: "2024-01-14T22:45:10Z",
-    type: "phishing",
-    severity: "high",
-    message: "Bank impersonation attempt from bank0famerica-secure.com",
-    emailId: "4",
-    action: "Email quarantined automatically",
-  },
-  {
-    id: "alert4",
-    timestamp: "2024-01-14T14:00:05Z",
-    type: "spam",
-    severity: "medium",
-    message: "Lottery scam detected from international-prize.net",
-    emailId: "6",
-    action: "Email quarantined automatically",
-  },
-  {
-    id: "alert5",
-    timestamp: "2024-01-13T20:00:20Z",
-    type: "phishing",
-    severity: "high",
-    message: "Microsoft impersonation from microsoft-365-support.xyz",
-    emailId: "8",
-    action: "Email quarantined automatically",
-  },
-  {
-    id: "alert6",
-    timestamp: "2024-01-13T09:00:45Z",
-    type: "malware",
-    severity: "medium",
-    message: "Suspicious macro detected in Invoice attachment",
-    emailId: "10",
-    action: "Attachment flagged for review",
-  },
-  {
-    id: "alert7",
-    timestamp: "2024-01-12T08:00:30Z",
-    type: "spam",
-    severity: "high",
-    message: "419 Advance fee scam detected",
-    emailId: "12",
-    action: "Email quarantined automatically",
-  },
-  {
-    id: "alert8",
-    timestamp: "2024-01-11T09:30:55Z",
-    type: "spoofing",
-    severity: "high",
-    message: "IT Department impersonation attempt",
-    emailId: "14",
-    action: "Email quarantined automatically",
   },
 ]
 

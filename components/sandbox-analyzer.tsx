@@ -184,9 +184,9 @@ export function SandboxAnalyzer({ attachment, onAnalysisComplete }: SandboxAnaly
               <FileSearch className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
-              <p className="font-mono text-sm">{attachment.name}</p>
+              <p className="font-mono text-sm">{attachment?.name || 'Unknown Attachment'}</p>
               <p className="text-xs text-muted-foreground">
-                {attachment.size} • {attachment.type}
+                {attachment?.size || 'Unknown size'} • {attachment?.type || 'unknown/type'}
               </p>
             </div>
           </div>

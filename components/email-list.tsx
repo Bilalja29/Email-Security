@@ -35,14 +35,14 @@ export function EmailList({ emails, selectedId }: EmailListProps) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className={cn("font-medium truncate", !email.isRead && "font-semibold")}>{email.fromName}</span>
-                  {email.attachments.length > 0 && (
+                  {email.attachments && email.attachments.length > 0 && (
                     <Paperclip className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                   )}
                 </div>
                 <p className={cn("text-sm truncate", !email.isRead ? "text-foreground" : "text-muted-foreground")}>
                   {email.subject}
                 </p>
-                <p className="text-xs text-muted-foreground truncate mt-1">{email.body.substring(0, 80)}...</p>
+                <p className="text-xs text-muted-foreground truncate mt-1">{(email.body || '').substring(0, 80)}...</p>
               </div>
               <div className="flex flex-col items-end gap-2 flex-shrink-0">
                 <RiskBadge level={email.riskLevel} score={email.riskScore} size="sm" />

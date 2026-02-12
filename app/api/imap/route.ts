@@ -1,102 +1,98 @@
-import { NextResponse } from "next/server"
-import fs from "fs/promises"
-import path from "path"
-import { encryptObject, decryptObject } from "@/lib/server-crypto"
+import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+import { z } from 'zod';
 
-const DATA_DIR = path.join(process.cwd(), "data")
-const STORE_FILE = path.join(DATA_DIR, "imap-store.json")
+const dataDir = path.join(process.cwd(), 'data');
+const storeFile = path.join(dataDir, 'imap-store.json');
+const masterKey = process.env.MASTER_KEY;
 
-async function ensureStore() {
+if (!masterKey) throw new Error('MASTER_KEY required');
+
+const ImapConfigSchema = z.object({
+  host: z.string().min(1),
+  port: z.number().min(1),
+  email: z.string().email(),
+  password: z.string().min(1),
+  name: z.string().optional(),
+});
+
+type EncryptedConfig = { id: string; name?: string; data: string; iv: string };
+
+async function ensureDataDir() {
   try {
-    await fs.mkdir(DATA_DIR, { recursive: true })
+    await fs.mkdir(dataDir, { recursive: true });
+  } catch {}
+}
+
+function encrypt(text: string): { encrypted: string; iv: string } {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(masterKey, 'hex'), iv);
+  let encrypted = cipher.update(text, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag().toString('hex');
+  return { encrypted: encrypted + '::' + authTag, iv: iv.toString('hex') };
+}
+
+function decrypt(encrypted: string, iv: string): string {
+  const [data, authTag] = encrypted.split('::');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(masterKey, 'hex'), Buffer.from(iv, 'hex'));
+  decipher.setAuthTag(Buffer.from(authTag, 'hex'));
+  let decrypted = decipher.update(data, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
+
+export async function GET() {
+  await ensureDataDir();
+  try {
+    const data = await fs.readFile(storeFile, 'utf8');
+    const encryptedConfigs: EncryptedConfig[] = JSON.parse(data);
+    const configs = encryptedConfigs.map(({ id, name, data, iv }) => ({
+      id,
+      name,
+      ...JSON.parse(decrypt(data, iv)),
+    }));
+    return NextResponse.json(configs);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return NextResponse.json([]);
+    return NextResponse.json({ error: 'Failed to load configs' }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  await ensureDataDir();
+  try {
+    const body = await req.json();
+    const config = ImapConfigSchema.parse(body);
+    const { encrypted, iv } = encrypt(JSON.stringify(config));
+    let configs: EncryptedConfig[] = [];
     try {
-      await fs.access(STORE_FILE)
-    } catch {
-      // initialize empty encrypted store if no master key, store plaintext empty array as encrypted object with master key check later
-      await fs.writeFile(STORE_FILE, JSON.stringify({ data: null }))
-    }
-  } catch (e) {
-    // ignore
+      const data = await fs.readFile(storeFile, 'utf8');
+      configs = JSON.parse(data);
+    } catch {}
+    const id = crypto.randomUUID();
+    configs.push({ id, name: config.name, data: encrypted, iv });
+    await fs.writeFile(storeFile, JSON.stringify(configs));
+    return NextResponse.json({ id, message: 'Config saved' });
+  } catch (err) {
+    if (err instanceof z.ZodError) return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
+    return NextResponse.json({ error: 'Failed to save' }, { status: 500 });
   }
 }
 
-export async function GET(req: Request) {
-  if (!process.env.MASTER_KEY) {
-    return NextResponse.json({ error: "MASTER_KEY not configured" }, { status: 500 })
-  }
-
-  await ensureStore()
-
-  const raw = await fs.readFile(STORE_FILE, "utf8").catch(() => "")
-  if (!raw) return NextResponse.json({ configs: [] })
-
+export async function DELETE(req: NextRequest) {
+  await ensureDataDir();
+  const id = req.nextUrl.searchParams.get('id');
+  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
   try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || !parsed.data) return NextResponse.json({ configs: [] })
-    const configs = decryptObject(parsed, process.env.MASTER_KEY)
-    return NextResponse.json({ configs })
-  } catch (e: any) {
-    return NextResponse.json({ error: "Failed to read store" }, { status: 500 })
-  }
-}
-
-export async function POST(req: Request) {
-  if (!process.env.MASTER_KEY) {
-    return NextResponse.json({ error: "MASTER_KEY not configured" }, { status: 500 })
-  }
-
-  const payload = await req.json().catch(() => ({}))
-  const { host, port, email, password, name } = payload
-  if (!host || !port || !email || !password) {
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 })
-  }
-
-  await ensureStore()
-
-  try {
-    const raw = await fs.readFile(STORE_FILE, "utf8").catch(() => "")
-    const parsed = raw ? JSON.parse(raw) : null
-    let configs: any[] = []
-    if (parsed && parsed.data) {
-      configs = decryptObject(parsed, process.env.MASTER_KEY)
-    }
-
-    const id = Date.now().toString()
-    const item = { id, host, port, email, password, name }
-    configs.push(item)
-
-    const encrypted = encryptObject(configs, process.env.MASTER_KEY)
-    await fs.writeFile(STORE_FILE, JSON.stringify(encrypted, null, 2), "utf8")
-
-    return NextResponse.json({ message: "Saved", item })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Save failed" }, { status: 500 })
-  }
-}
-
-export async function DELETE(req: Request) {
-  if (!process.env.MASTER_KEY) {
-    return NextResponse.json({ error: "MASTER_KEY not configured" }, { status: 500 })
-  }
-
-  const url = new URL(req.url)
-  const id = url.searchParams.get("id")
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 })
-
-  await ensureStore()
-
-  try {
-    const raw = await fs.readFile(STORE_FILE, "utf8").catch(() => "")
-    const parsed = raw ? JSON.parse(raw) : null
-    if (!parsed || !parsed.data) return NextResponse.json({ message: "Not found" })
-
-    const configs = decryptObject(parsed, process.env.MASTER_KEY)
-    const filtered = configs.filter((c: any) => c.id !== id)
-    const encrypted = encryptObject(filtered, process.env.MASTER_KEY)
-    await fs.writeFile(STORE_FILE, JSON.stringify(encrypted, null, 2), "utf8")
-
-    return NextResponse.json({ message: "Deleted" })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Delete failed" }, { status: 500 })
+    const data = await fs.readFile(storeFile, 'utf8');
+    let configs: EncryptedConfig[] = JSON.parse(data);
+    configs = configs.filter((c) => c.id !== id);
+    await fs.writeFile(storeFile, JSON.stringify(configs));
+    return NextResponse.json({ message: 'Deleted' });
+  } catch {
+    return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
   }
 }

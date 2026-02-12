@@ -1,8 +1,11 @@
 flask==3.0.0
 flask-login==0.6.3
 flask-wtf==1.2.1
+flask-session==0.7.0
+cachelib
 python-dotenv==1.0.0
 cryptography==41.0.7
 email-validator==2.1.0
-Werkzeug==3.0.1
+werkzeug==3.0.1
 virustotal-python
+docker==7.1.0

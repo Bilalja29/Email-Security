@@ -1,0 +1,72 @@
+execve("./test.sh", ["./test.sh"], 0x7ffdd3f9bf88 /* 8 vars */) = 0
+access("/etc/ld.so.preload", R_OK)      = -1 ENOENT (No such file or directory)
+openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=6204, ...}, AT_EMPTY_PATH) = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libtinfo.so.6", O_RDONLY|O_CLOEXEC) = 3
+newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=200136, ...}, AT_EMPTY_PATH) = 0
+openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+newfstatat(3, "", {st_mode=S_IFREG|0755, st_size=2220400, ...}, AT_EMPTY_PATH) = 0
+openat(AT_FDCWD, "/dev/tty", O_RDWR|O_NONBLOCK) = 3
+newfstatat(AT_FDCWD, "/sandbox_volume", {st_mode=S_IFDIR|0777, st_size=4096, ...}, 0) = 0
+newfstatat(AT_FDCWD, ".", {st_mode=S_IFDIR|0777, st_size=4096, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/sandbox_volume", {st_mode=S_IFDIR|0777, st_size=4096, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/etc/nsswitch.conf", {st_mode=S_IFREG|0644, st_size=494, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/", {st_mode=S_IFDIR|0755, st_size=4096, ...}, 0) = 0
+openat(AT_FDCWD, "/etc/nsswitch.conf", O_RDONLY|O_CLOEXEC) = 3
+newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=494, ...}, AT_EMPTY_PATH) = 0
+newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=494, ...}, AT_EMPTY_PATH) = 0
+openat(AT_FDCWD, "/etc/passwd", O_RDONLY|O_CLOEXEC) = 3
+newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=1025, ...}, AT_EMPTY_PATH) = 0
+openat(AT_FDCWD, "./test.sh", O_RDONLY) = 3
+newfstatat(AT_FDCWD, "./test.sh", {st_mode=S_IFREG|0755, st_size=75, ...}, 0) = 0
+newfstatat(255, "", {st_mode=S_IFREG|0755, st_size=75, ...}, AT_EMPTY_PATH) = 0
+newfstatat(1, "", {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0), ...}, AT_EMPTY_PATH) = 0
+newfstatat(AT_FDCWD, ".", {st_mode=S_IFDIR|0777, st_size=4096, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/usr/local/sbin/touch", 0x7ffe006f3f00, 0) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/usr/local/bin/touch", 0x7ffe006f3f00, 0) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/usr/sbin/touch", 0x7ffe006f3f00, 0) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/usr/bin/touch", {st_mode=S_IFREG|0755, st_size=92680, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/usr/bin/touch", {st_mode=S_IFREG|0755, st_size=92680, ...}, 0) = 0
+access("/usr/bin/touch", X_OK)          = 0
+newfstatat(AT_FDCWD, "/usr/bin/touch", {st_mode=S_IFREG|0755, st_size=92680, ...}, 0) = 0
+access("/usr/bin/touch", R_OK)          = 0
+newfstatat(AT_FDCWD, "/usr/bin/touch", {st_mode=S_IFREG|0755, st_size=92680, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/usr/bin/touch", {st_mode=S_IFREG|0755, st_size=92680, ...}, 0) = 0
+access("/usr/bin/touch", X_OK)          = 0
+newfstatat(AT_FDCWD, "/usr/bin/touch", {st_mode=S_IFREG|0755, st_size=92680, ...}, 0) = 0
+access("/usr/bin/touch", R_OK)          = 0
+strace: Process 19 attached
+[pid    19] execve("/usr/bin/touch", ["touch", "test_created.txt"], 0x5cbca897c2b0 /* 8 vars */) = 0
+[pid    19] access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+[pid    19] openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+[pid    19] newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=6204, ...}, AT_EMPTY_PATH) = 0
+[pid    19] openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+[pid    19] newfstatat(3, "", {st_mode=S_IFREG|0755, st_size=2220400, ...}, AT_EMPTY_PATH) = 0
+[pid    19] openat(AT_FDCWD, "test_created.txt", O_WRONLY|O_CREAT|O_NOCTTY|O_NONBLOCK, 0666) = 3
+[pid    19] utimensat(0, NULL, NULL, 0) = 0
+[pid    19] +++ exited with 0 +++
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=19, si_uid=0, si_status=0, si_utime=0, si_stime=0} ---
+newfstatat(AT_FDCWD, ".", {st_mode=S_IFDIR|0777, st_size=4096, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/usr/local/sbin/sleep", 0x7ffe006f3f00, 0) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/usr/local/bin/sleep", 0x7ffe006f3f00, 0) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/usr/sbin/sleep", 0x7ffe006f3f00, 0) = -1 ENOENT (No such file or directory)
+newfstatat(AT_FDCWD, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+access("/usr/bin/sleep", X_OK)          = 0
+newfstatat(AT_FDCWD, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+access("/usr/bin/sleep", R_OK)          = 0
+newfstatat(AT_FDCWD, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+newfstatat(AT_FDCWD, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+access("/usr/bin/sleep", X_OK)          = 0
+newfstatat(AT_FDCWD, "/usr/bin/sleep", {st_mode=S_IFREG|0755, st_size=35336, ...}, 0) = 0
+access("/usr/bin/sleep", R_OK)          = 0
+strace: Process 20 attached
+[pid    20] execve("/usr/bin/sleep", ["sleep", "2"], 0x5cbca897c2b0 /* 8 vars */) = 0
+[pid    20] access("/etc/ld.so.preload", R_OK) = -1 ENOENT (No such file or directory)
+[pid    20] openat(AT_FDCWD, "/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+[pid    20] newfstatat(3, "", {st_mode=S_IFREG|0644, st_size=6204, ...}, AT_EMPTY_PATH) = 0
+[pid    20] openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) = 3
+[pid    20] newfstatat(3, "", {st_mode=S_IFREG|0755, st_size=2220400, ...}, AT_EMPTY_PATH) = 0
+[pid    20] +++ exited with 0 +++
+--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED, si_pid=20, si_uid=0, si_status=0, si_utime=0, si_stime=0} ---
++++ exited with 0 +++

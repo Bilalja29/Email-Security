@@ -9,6 +9,7 @@ import { useAppStore } from "@/lib/store"
 import { RiskBadge } from "@/components/risk-badge"
 import { RiskGauge } from "@/components/risk-gauge"
 import { SandboxAnalyzer } from "@/components/sandbox-analyzer"
+import { ScannedUrls } from "@/components/scanned-urls"
 import { highlightSuspiciousContent } from "@/lib/threat-detection"
 import {
   ArrowLeft,
@@ -27,14 +28,32 @@ import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { Sidebar } from "@/components/sidebar"
 import { Header } from "@/components/header"
+import { useState, useEffect } from "react"
+import { VirusTotalResultModal } from "@/components/virustotal-result-modal"
 
 export default function EmailDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
-  const { emails, markAsRead, quarantineEmail, deleteEmail } = useAppStore()
+  const emails = useAppStore((state) => state.emails)
+  const markAsRead = useAppStore((state) => state.markAsRead)
+  const quarantineEmail = useAppStore((state) => state.quarantineEmail)
+  const deleteEmail = useAppStore((state) => state.deleteEmail)
 
   const email = emails.find((e) => e.id === params.id)
+
+  // Debug logging
+  if (email) {
+    console.log('📧 Email found:', {
+      id: email.id,
+      subject: email.subject,
+      attachmentsCount: email.attachments?.length || 0,
+      attachments: email.attachments,
+    })
+  } else {
+    console.log('❌ Email not found. Searching for ID:', params.id)
+    console.log('📋 Available email IDs:', emails.map(e => e.id))
+  }
 
   if (!email) {
     return (
@@ -86,6 +105,94 @@ export default function EmailDetailPage() {
     })
   }
 
+  const handleVirusTotalScan = async () => {
+    setVtLoading(true)
+    try {
+      const res = await fetch("/api/scan-virus-total", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email_id: email.id }),
+      })
+      const data = await res.json()
+      console.log('[VT SCAN RESPONSE]', data)
+      setVtScanResult(data)
+      setVtModalOpen(true)
+    } catch (err) {
+      setVtScanResult({ error: "Scan failed" })
+      setVtModalOpen(true)
+    } finally {
+      setVtLoading(false)
+    }
+  }
+
+  const handleScanUrls = async () => {
+    setUrlScanLoading(true)
+    try {
+      const res = await fetch("/api/scan-urls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_id: email.id,
+          body: email.body,
+          subject: email.subject,
+        }),
+      })
+      const data = await res.json()
+      console.log('[VT URL SCAN RESPONSE]', data)
+      setScannedUrls(data.results || [])
+      toast({
+        title: "Scan Complete",
+        description: `Scanned ${data.results?.length || 0} URL(s) with VirusTotal`,
+      })
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to scan URLs",
+        variant: "destructive",
+      })
+    } finally {
+      setUrlScanLoading(false)
+    }
+  }
+
+  const [vtModalOpen, setVtModalOpen] = useState(false)
+  const [vtScanResult, setVtScanResult] = useState(null)
+  const [vtLoading, setVtLoading] = useState(false)
+  const [urlScanLoading, setUrlScanLoading] = useState(false)
+  const [scannedUrls, setScannedUrls] = useState([])
+  const [urlAutoScanDone, setUrlAutoScanDone] = useState(false)
+
+  // Auto-scan URLs on email load
+  useEffect(() => {
+    if (email && !urlAutoScanDone) {
+      const autoScanUrls = async () => {
+        setUrlScanLoading(true)
+        try {
+          const res = await fetch("/api/scan-urls", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email_id: email.id,
+              body: email.body,
+              subject: email.subject,
+            }),
+          })
+          const data = await res.json()
+          console.log('[VT AUTO-SCAN RESPONSE]', data)
+          setScannedUrls(data.results || [])
+          setUrlAutoScanDone(true)
+        } catch (err) {
+          console.error('Auto-scan error:', err)
+          setUrlAutoScanDone(true)
+        } finally {
+          setUrlScanLoading(false)
+        }
+      }
+
+      autoScanUrls()
+    }
+  }, [email?.id, urlAutoScanDone])
+
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -115,6 +222,14 @@ export default function EmailDetailPage() {
                 <Button variant="destructive" onClick={handleDelete}>
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete
+                </Button>
+                <Button variant="outline" onClick={handleVirusTotalScan} disabled={vtLoading}>
+                  <Shield className="w-4 h-4 mr-2" />
+                  {vtLoading ? "Scanning..." : "Scan with VirusTotal"}
+                </Button>
+                <Button variant="outline" onClick={handleScanUrls} disabled={urlScanLoading}>
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  {urlScanLoading ? "Scanning URLs..." : "Scan URLs"}
                 </Button>
               </div>
             </div>
@@ -202,8 +317,11 @@ export default function EmailDetailPage() {
                   </Card>
                 )}
 
+                {/* VirusTotal Scanned URLs */}
+                <ScannedUrls urls={scannedUrls} isLoading={urlScanLoading && !urlAutoScanDone} />
+
                 {/* Attachments */}
-                {email.attachments.length > 0 && (
+                {email.attachments && email.attachments.length > 0 ? (
                   <div className="space-y-4">
                     <h3 className="font-semibold flex items-center gap-2">
                       <FileWarning className="w-5 h-5" />
@@ -213,6 +331,8 @@ export default function EmailDetailPage() {
                       <SandboxAnalyzer key={attachment.id} attachment={attachment} />
                     ))}
                   </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">No attachments in this email.</div>
                 )}
               </div>
 
@@ -298,6 +418,7 @@ export default function EmailDetailPage() {
           </div>
         </main>
       </div>
+      <VirusTotalResultModal open={vtModalOpen} onClose={() => setVtModalOpen(false)} result={vtScanResult} />
     </div>
   )
 }

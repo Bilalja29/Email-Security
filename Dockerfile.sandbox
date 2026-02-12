@@ -1,0 +1,13 @@
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    strace \
+    inotify-tools \
+    tcpdump \
+    procps \
+    net-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /sandbox_volume
+
+CMD ["sleep", "infinity"]

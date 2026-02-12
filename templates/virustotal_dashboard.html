@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>VirusTotal Scan Results Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+
+<body style="background-color: #000000; color: #ffffff;">
+  <div class="container mt-4">
+    <h2>VirusTotal Scan Results</h2>
+    <table class="table table-bordered table-striped mt-3">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Filename</th>
+          <th>Detections</th>
+          <th>Total Engines</th>
+          <th>Permalink</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in scans %}
+        <tr>
+          <td>{{ scan.timestamp }}</td>
+          <td>{{ scan.filename }}</td>
+          <td>{{ scan.result.detections }}</td>
+          <td>{{ scan.result.total }}</td>
+          <td>
+            {% if scan.result.permalink %}
+            <a href="{{ scan.result.permalink }}" target="_blank">View Report</a>
+            {% else %}
+            N/A
+            {% endif %}
+          </td>
+          <td>
+            {% if scan.result.error %}
+            <span class="text-danger">{{ scan.result.error }}</span>
+            {% else %}
+            <span class="text-success">Completed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+  </div>
+</body>
+
+</html>

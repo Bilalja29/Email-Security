@@ -1,63 +1,25 @@
-export interface ThreatAnalysis {
-  riskScore: number
-  riskLevel: "safe" | "warning" | "dangerous"
-  flags: string[]
-  suspiciousPatterns: { pattern: string; match: string; severity: "low" | "medium" | "high" }[]
+import dns from 'dns/promises';  // For domain rep checks
+
+export function detectThreats(email: any) {
+  let score = 0;
+  let level = 'safe';
+
+  // Phishing regex
+  const phishingPatterns = [/urgent/i, /verify your account/i, /click here/i];
+  if (phishingPatterns.some((p) => p.test(email.body) || p.test(email.subject))) score += 50;
+
+  // Domain reputation (real DNS check)
+  const domain = email.from.split('@')[1];
+  dns.resolveMx(domain).catch(() => score += 30);  // No MX? Suspicious
+
+  // Attachments: Check extensions
+  if (email.attachments.some((a: any) => /\.(exe|bat|js)$/i.test(a.filename))) score += 40;
+
+  if (score > 80) level = 'dangerous';
+  else if (score > 50) level = 'warning';
+
+  return { score, level };
 }
-
-// Phishing detection patterns
-const phishingPatterns = [
-  {
-    regex: /\b(urgent|immediately|act now|limited time|expire|suspend)\b/gi,
-    name: "Urgent Language",
-    severity: "medium" as const,
-  },
-  {
-    regex: /\b(verify|confirm|update|secure|validate)\s+(your|account|identity)\b/gi,
-    name: "Verification Request",
-    severity: "high" as const,
-  },
-  { regex: /\b(click here|click below|login now)\b/gi, name: "Click Bait", severity: "medium" as const },
-  { regex: /\b(password|credential|login|username)\b/gi, name: "Credential Reference", severity: "medium" as const },
-  {
-    regex: /\$[\d,]+(\.\d{2})?\s*(usd|dollars|million|billion)/gi,
-    name: "Large Money Amount",
-    severity: "high" as const,
-  },
-  {
-    regex: /\b(bank|paypal|amazon|microsoft|apple|google|netflix)\s*(account|security|team|support)/gi,
-    name: "Brand Impersonation",
-    severity: "high" as const,
-  },
-  {
-    regex: /\b(won|winner|lottery|prize|congratulations|selected)\b/gi,
-    name: "Prize/Lottery Language",
-    severity: "high" as const,
-  },
-  {
-    regex: /\b(send|transfer|wire|western union|moneygram)\s*(money|funds|payment)/gi,
-    name: "Money Transfer Request",
-    severity: "high" as const,
-  },
-]
-
-// Sensitive data patterns
-const sensitiveDataPatterns = [
-  { regex: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/, name: "Credit Card Number", severity: "high" as const },
-  { regex: /\b\d{5}[-\s]?\d{7}[-\s]?\d{1}\b/, name: "CNIC Number", severity: "high" as const },
-  { regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b/i, name: "IBAN Number", severity: "high" as const },
-  { regex: /password\s*[:=]\s*\S+/gi, name: "Exposed Password", severity: "critical" as const },
-  {
-    regex: /\b(ssn|social security)\s*[:=]?\s*\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/gi,
-    name: "SSN Number",
-    severity: "critical" as const,
-  },
-]
-
-// Suspicious domain patterns
-const suspiciousDomainPatterns = [
-  { regex: /paypa[l1][-.]?(?!paypal\.com)/gi, name: "PayPal Spoofing" },
-  { regex: /bank[-.]?of[-.]?america(?!\.com)/gi, name: "Bank of America Spoofing" },
   { regex: /microsoft[-.]?(?!microsoft\.com)/gi, name: "Microsoft Spoofing" },
   { regex: /amaz[o0]n[-.]?(?!amazon\.com)/gi, name: "Amazon Spoofing" },
   { regex: /\.(xyz|top|work|click|loan|download|zip)$/gi, name: "Suspicious TLD" },

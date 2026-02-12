@@ -11,7 +11,7 @@ import Link from "next/link"
 
 export function Header() {
   const { theme, setTheme } = useTheme()
-  const { alerts, imapConfig } = useAppStore()
+  const alerts = useAppStore((state) => state.alerts)
 
   const criticalAlerts = alerts.filter((a) => a.severity === "critical").slice(0, 5)
 
@@ -79,8 +79,8 @@ export function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <div className="p-2 border-b border-border">
-              <p className="font-semibold text-sm">{imapConfig?.email || "demo@example.com"}</p>
-              <p className="text-xs text-muted-foreground">Connected</p>
+              <p className="font-semibold text-sm">Connected Account</p>
+              <p className="text-xs text-muted-foreground">Email Security Active</p>
             </div>
             <Link href="/settings">
               <DropdownMenuItem>Settings</DropdownMenuItem>
