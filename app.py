@@ -62,6 +62,19 @@ def scan_attachment_with_virustotal(file_path, filename):
                 }
 
     return {"error": "Timeout", "detections": 0, "total": 70}
+
+# --- New: scan_attachment using virustotal_python ---
+from virustotal_python import Virustotal
+import hashlib
+
+def scan_attachment(file_path):
+    vtotal = Virustotal(API_KEY=os.getenv("VT_API_KEY"))
+    with open(file_path, "rb") as f:
+        analysis = vtotal.file_scan(f)
+    # Wait for report (polling)
+    report = vtotal.file_report(analysis['sha256'])
+    malicious = report['positives'] > 0
+    return {"malicious": malicious, "detections": report['positives'], "total": report['total']}
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import imaplib
@@ -664,10 +677,20 @@ def login():
         session.pop('demo_mode', None)  # Remove any old demo flag
 
         # Always try real IMAP login
+
         email = request.form['email']
-        password = request.form['password']
+        # Use 'app_password' from form for IMAP config, fallback to 'password' for legacy
+        app_password = request.form.get('app_password', request.form.get('password'))
+        password = app_password
         host = request.form['imap_host']
         port = int(request.form['imap_port'])
+
+        # Store IMAP config in session for fetch_real_emails
+        session['imap_config'] = {
+            'host': host,
+            'email': email,
+            'password': app_password
+        }
 
         try:
             mail = imaplib.IMAP4_SSL(host, port)
@@ -1161,6 +1184,56 @@ def fetch_emails(num_emails=50):
         print(f"IMAP Error: {e}")
         flash(f"Connection failed: {str(e)}. Try re-login", "error")
         return []
+
+
+# --- New: fetch_real_emails utility ---
+import imaplib
+import email
+from email.header import decode_header
+from flask import session
+
+def fetch_real_emails():
+    if 'imap_config' not in session:
+        return []  # fallback to empty or mock if needed temporarily
+    config = session['imap_config']
+    emails_list = []
+    try:
+        mail = imaplib.IMAP4_SSL(config['host'])  # e.g., 'imap.gmail.com'
+        mail.login(config['email'], config['password'])
+        mail.select('INBOX')
+        status, messages = mail.search(None, 'ALL')
+        email_ids = messages[0].split()
+        # Last 20 emails (recent)
+        for e_id in email_ids[-20:]:
+            status, msg_data = mail.fetch(e_id, '(RFC822)')
+            raw_email = msg_data[0][1]
+            msg = email.message_from_bytes(raw_email)
+            subject = decode_header(msg['Subject'])[0][0]
+            if isinstance(subject, bytes):
+                subject = subject.decode()
+            from_ = msg.get('From')
+            body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        body = part.get_payload(decode=True).decode()
+                        break
+            else:
+                body = msg.get_payload(decode=True).decode()
+            emails_list.append({
+                'id': e_id.decode(),
+                'from': from_,
+                'subject': subject,
+                'body': body[:500] + '...',  # truncate for preview
+                'date': msg.get('Date'),
+                # attachments handle separately
+            })
+        mail.close()
+        mail.logout()
+    except Exception as e:
+        print(f"IMAP Error: {e}")
+        # fallback to mock if connection fails
+    return emails_list
 
 @app.route('/scan')
 @login_required
