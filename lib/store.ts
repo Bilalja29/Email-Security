@@ -10,6 +10,8 @@ interface AppState {
   addAlert: (alert: Alert) => void;
   clearAlerts: () => void;
   setActiveImapConfig: (id: string) => void;
+  login: (id: string) => void;
+  logout: () => void;
   markEmailRead: (id: string) => void;
   markAsRead: (id: string) => void;
   quarantineEmail: (id: string) => void;
@@ -45,5 +47,9 @@ export const useAppStore = create<AppState>()(
     deleteEmail: (id) => set((state) => {
       state.emails = state.emails.filter((e) => e.id !== id);
     }),
+    // Login by setting active IMAP config id (accepts id string)
+    login: (id: string) => set({ activeImapConfigId: id }),
+    // Logout clears session-related state
+    logout: () => set({ activeImapConfigId: null, emails: [], alerts: [] }),
   }))
 );

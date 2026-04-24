@@ -16,6 +16,8 @@ import { Settings, Mail, Shield, Key, Bell, Trash2, Plus, CheckCircle2, Server, 
 
 export default function SettingsPage() {
   const activeImapConfigId = useAppStore((state) => state.activeImapConfigId)
+  const setActiveImapConfig = useAppStore((state) => state.setActiveImapConfig)
+  const logout = useAppStore((state) => (state as any).logout)
   const { toast } = useToast()
 
   // Settings states
@@ -48,6 +50,21 @@ export default function SettingsPage() {
     })
   }
 
+  const handleExportPublicKey = () => {
+    // Minimal client-side export of a demo public key
+    const publicKey = `-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnExamplePublicKeyData\n-----END PUBLIC KEY-----\n`
+    const blob = new Blob([publicKey], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'public_key.pem'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    toast({ title: 'Exported', description: 'Public key downloaded.' })
+  }
+
   async function loadAccounts() {
     setLoadingAccounts(true)
     try {
@@ -78,48 +95,18 @@ export default function SettingsPage() {
       if (!res.ok) throw new Error(data?.error || 'Add failed')
       setAccounts((prev) => [data.item, ...prev])
 
-      // Set as active
-      login({ host, port: Number(port), email: emailAddr, password })
+      // Set as active using returned item id
+      if (data?.item?.id) setActiveImapConfig(data.item.id)
 
       toast({ title: 'Account Added', description: 'IMAP account saved and connected.' })
 
       // reset form
       setHost('')
-        return (
-          <div className="flex h-screen bg-background">
-            <aside className="w-[260px] flex-shrink-0">
-              <Sidebar />
-            </aside>
-            <main className="flex-1 flex flex-col overflow-hidden bg-background">
-              <Header />
-              <section className="flex-1 overflow-auto p-6">
-                <div className="max-w-4xl mx-auto space-y-6">
-                  <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-3">
-                      <Settings className="w-7 h-7 text-primary" />
-                      Settings
-                    </h1>
-                    <p className="text-muted-foreground">Manage your account and security preferences</p>
-                  </div>
-
-                  {/* Connected Accounts */}
-                  <Card className="bg-card border-border">
-                    {/* ...existing code... */}
-                  </Card>
-
-                  {/* Responsive 3-column grid for settings cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* ...existing code... */}
-                  </div>
-
-                  <Button className="w-full glow-purple mt-6" onClick={handleSaveSettings}>
-                    Save All Settings
-                  </Button>
-                </div>
-              </section>
-            </main>
-          </div>
-        )
+      setPort('993')
+      setEmailAddr('')
+      setPassword('')
+      setName('')
+      setShowAdd(false)
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
@@ -365,7 +352,7 @@ export default function SettingsPage() {
                       <Key className="w-4 h-4 mr-2" />
                       Generate New Keys
                     </Button>
-                    <Button variant="outline">
+                    <Button variant="outline" onClick={handleExportPublicKey}>
                       <Lock className="w-4 h-4 mr-2" />
                       Export Public Key
                     </Button>

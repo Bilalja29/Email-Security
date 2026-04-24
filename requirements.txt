@@ -9,3 +9,4 @@ email-validator==2.1.0
 werkzeug==3.0.1
 virustotal-python
 docker==7.1.0
+apscheduler==3.10.1

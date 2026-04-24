@@ -10,9 +10,11 @@ export function StatsCards() {
   const alerts = useAppStore((state) => state.alerts)
 
   const totalEmails = emails.length
-  const safeEmails = emails.filter((e) => e.riskLevel === "safe").length
-  const dangerousEmails = emails.filter((e) => e.riskLevel === "dangerous").length
+  // Partition emails into exclusive buckets so counts sum to total
   const quarantinedEmails = emails.filter((e) => e.isQuarantined).length
+  const nonQuarantined = emails.filter((e) => !e.isQuarantined)
+  const safeEmails = nonQuarantined.filter((e) => e.riskLevel === "safe").length
+  const atRiskEmails = nonQuarantined.filter((e) => e.riskLevel !== "safe").length
   const threatsBlocked = alerts.filter((a) => a.action.includes("quarantine") || a.action.includes("blocked")).length
 
   const stats = [
@@ -26,19 +28,19 @@ export function StatsCards() {
       bg: "bg-primary/10",
     },
     {
-      title: "Safe Emails",
+      title: "Safe (not quarantined)",
       value: safeEmails,
       icon: ShieldCheck,
-      change: `${Math.round((safeEmails / totalEmails) * 100)}%`,
+      change: totalEmails > 0 ? `${Math.round((safeEmails / totalEmails) * 100)}%` : "0%",
       trend: "up",
       color: "text-green-400",
       bg: "bg-green-500/10",
     },
     {
-      title: "Threats Blocked",
-      value: threatsBlocked,
+      title: "At-Risk (not quarantined)",
+      value: atRiskEmails,
       icon: ShieldAlert,
-      change: "-8%",
+      change: totalEmails > 0 ? `${Math.round((atRiskEmails / totalEmails) * 100)}%` : "0%",
       trend: "down",
       color: "text-red-400",
       bg: "bg-red-500/10",
@@ -55,6 +57,8 @@ export function StatsCards() {
   ]
 
   return (
+    // Debug: log computed stats to help verify totals during development
+    console.log('StatsCards:', { totalEmails, safeEmails, atRiskEmails, quarantinedEmails, threatsBlocked }) || (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {stats.map((stat) => {
         const Icon = stat.icon

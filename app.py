@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 import requests
 import time
 import os
+import threading
+import json
 
 load_dotenv()
 # Also load api.env if present (where the API key may be stored)
@@ -56,58 +58,9 @@ def scan_url_with_virustotal(url):
         return {"error": "No API key", "detections": 0, "total": 0, "url": url, "verdict": "safe"}
     
     try:
-        import base64
-        
-        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
-        
-        # First, try to get existing report using URL ID (base64 encoded)
-        url_id = base64.urlsafe_b64encode(url.encode()).decode().rstrip('=')
-        existing_report_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
-        
-        print(f"[VT URL] Checking existing report for: {url}")
-        existing_resp = requests.get(existing_report_url, headers=headers, timeout=10)
-        
-        if existing_resp.status_code == 200:
-            print(f"[VT URL] Found existing report!")
-            data = existing_resp.json().get('data', {})
-            attrs = data.get('attributes', {})
-            stats = attrs.get('last_analysis_stats', {})
-            
-            malicious = stats.get('malicious', 0)
-            suspicious = stats.get('suspicious', 0)
-            undetected = stats.get('undetected', 0)
-            harmless = stats.get('harmless', 0)
-            
-            print(f"[VT URL] Stats - Malicious: {malicious}, Suspicious: {suspicious}")
-            
-            return {
-                'url': url,
-                'malicious': malicious,
-                'suspicious': suspicious,
-                'undetected': undetected,
-                'harmless': harmless,
-                'total': malicious + suspicious + undetected + harmless,
-                'status': attrs.get('last_http_response_code', 'unknown'),
-                'verdict': 'malicious' if malicious > 0 else 'suspicious' if suspicious > 0 else 'safe',
-                'permalink': f"https://www.virustotal.com/gui/home/url/{url_id}"
-            }
-        elif existing_resp.status_code == 404:
-            print(f"[VT URL] No existing report, URL not yet scanned")
-            # Return unscanned status
-            return {
-                'url': url,
-                'malicious': 0,
-                'suspicious': 0,
-                'undetected': 0,
-                'harmless': 0,
-                'total': 0,
-                'verdict': 'unscanned',
-                'status': 'not_found',
-                'error': 'URL not yet scanned in VirusTotal'
-            }
-        
         # If no existing report, submit URL for scanning (don't wait for results on page load)
         print(f"[VT URL] No existing report, submitting URL for scan...")
+        headers = {"x-apikey": VIRUSTOTAL_API_KEY}
         submit_url = "https://www.virustotal.com/api/v3/urls"
         data = {"url": url}
         
@@ -310,7 +263,229 @@ from cryptography.hazmat.primitives import serialization
 # --- VirusTotal Scan Results Dashboard Route ---
 from flask import render_template
 
-virustotal_scan_results = []  # Store recent scan results for dashboard
+# persistent cache for scanned URLs to avoid re-submission across restarts
+CACHE_FILE = os.path.join('data', 'vt_scanned_urls.json')
+scanned_urls_cache = {}
+_scanned_cache_lock = threading.Lock()
+
+def load_scanned_urls_cache():
+    global scanned_urls_cache
+    try:
+        os.makedirs(os.path.dirname(CACHE_FILE) or '.', exist_ok=True)
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                scanned_urls_cache = json.load(f)
+                # normalize timestamps to floats
+                for k, v in list(scanned_urls_cache.items()):
+                    try:
+                        scanned_urls_cache[k] = float(v)
+                    except:
+                        scanned_urls_cache[k] = time.time()
+    except Exception as e:
+        print(f"[VT CACHE] load error: {e}")
+        scanned_urls_cache = {}
+
+
+def save_scanned_urls_cache():
+    try:
+        os.makedirs(os.path.dirname(CACHE_FILE) or '.', exist_ok=True)
+        with _scanned_cache_lock:
+            with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(scanned_urls_cache, f)
+    except Exception as e:
+        print(f"[VT CACHE] save error: {e}")
+
+
+# --- Minimal Opt-In VT Scheduler with Batching and Secure Service Account ---
+# This scheduler scans emails in batches (4 per minute) and respects VT rate limits
+
+SCAN_QUEUE_FILE = os.path.join('data', 'vt_scan_queue.json')
+SCHEDULER_STATE_FILE = os.path.join('data', 'vt_scheduler_state.json')
+scan_queue = []
+_queue_lock = threading.Lock()
+scheduler_thread = None
+scheduler_running = False
+
+def load_scan_queue():
+    global scan_queue
+    try:
+        os.makedirs(os.path.dirname(SCAN_QUEUE_FILE) or '.', exist_ok=True)
+        if os.path.exists(SCAN_QUEUE_FILE):
+            with open(SCAN_QUEUE_FILE, 'r', encoding='utf-8') as f:
+                scan_queue = json.load(f)
+                print(f"[VT SCHEDULER] Loaded {len(scan_queue)} emails from queue")
+    except Exception as e:
+        print(f"[VT SCHEDULER] Queue load error: {e}")
+        scan_queue = []
+
+def save_scan_queue():
+    try:
+        os.makedirs(os.path.dirname(SCAN_QUEUE_FILE) or '.', exist_ok=True)
+        with _queue_lock:
+            with open(SCAN_QUEUE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(scan_queue, f)
+    except Exception as e:
+        print(f"[VT SCHEDULER] Queue save error: {e}")
+
+def add_to_scan_queue(email_ids):
+    """Add email IDs to the scan queue (avoid duplicates)."""
+    global scan_queue
+    with _queue_lock:
+        for eid in email_ids:
+            if eid not in scan_queue:
+                scan_queue.append(eid)
+        save_scan_queue()
+        print(f"[VT SCHEDULER] Queue now has {len(scan_queue)} emails")
+
+def fetch_emails_with_service_account(imap_host, imap_port, username, password, num_emails=50):
+    """Fetch emails using explicit service account credentials (no Flask context needed)."""
+    try:
+        mail = imaplib.IMAP4_SSL(imap_host, imap_port)
+        mail.login(username, password)
+        mail.select('INBOX')
+        status, messages = mail.search(None, 'ALL')
+        email_ids = messages[0].split()[-num_emails:] if messages[0] else []
+        mail.logout()
+        return [eid.decode() if isinstance(eid, bytes) else eid for eid in email_ids]
+    except Exception as e:
+        print(f"[VT SCHEDULER] Service account fetch error: {e}")
+        return []
+
+def process_vt_scan_batch(batch_size=4):
+    """Process up to batch_size emails from queue using VirusTotal."""
+    global scan_queue
+    
+    if not scan_queue:
+        return
+    
+    with _queue_lock:
+        batch = scan_queue[:batch_size]
+        if not batch:
+            return
+        print(f"[VT SCHEDULER] Processing batch of {len(batch)} emails from queue")
+    
+    # Fetch emails using service account to get details
+    service_host = os.getenv('SERVICE_IMAP_HOST')
+    service_port = int(os.getenv('SERVICE_IMAP_PORT', 993))
+    service_user = os.getenv('SERVICE_IMAP_USER')
+    service_pass = os.getenv('SERVICE_IMAP_PASS')
+    
+    if not (service_host and service_user and service_pass):
+        print(f"[VT SCHEDULER] Service account not configured, skipping batch")
+        return
+    
+    try:
+        mail = imaplib.IMAP4_SSL(service_host, service_port)
+        mail.login(service_user, service_pass)
+        mail.select('INBOX')
+        
+        for email_id in batch:
+            try:
+                status, msg_data = mail.fetch(email_id, '(RFC822)')
+                if status != 'OK':
+                    continue
+                
+                msg_bytes = msg_data[0][1]
+                msg = BytesParser(policy=policy.default).parsebytes(msg_bytes)
+                
+                # Extract URLs from body
+                body = ''
+                if msg.is_multipart():
+                    for part in msg.iter_parts():
+                        if part.get_content_type() == 'text/plain':
+                            body = part.get_payload(decode=True).decode('utf-8', errors='ignore')
+                            break
+                else:
+                    body = msg.get_payload(decode=True).decode('utf-8', errors='ignore')
+                
+                urls = extract_urls_from_text(body)
+                print(f"[VT SCHEDULER] Found {len(urls)} URLs in email {email_id}")
+                
+                # Scan each URL with VirusTotal
+                for url in urls:
+                    if url not in scanned_urls_cache:
+                        print(f"[VT SCHEDULER] Scanning URL: {url}")
+                        result = scan_url_with_virustotal(url)
+                        scanned_urls_cache[url] = time.time()
+                        save_scanned_urls_cache()
+                        time.sleep(1)  # Rate limiting: 1 second between submissions
+                
+                # Remove from queue
+                with _queue_lock:
+                    if email_id in scan_queue:
+                        scan_queue.remove(email_id)
+                
+            except Exception as e:
+                print(f"[VT SCHEDULER] Error processing email {email_id}: {e}")
+        
+        mail.logout()
+        save_scan_queue()
+        
+    except Exception as e:
+        print(f"[VT SCHEDULER] Batch processing error: {e}")
+
+def scheduler_worker():
+    """Background thread that processes scan queue every 60 seconds."""
+    global scan_queue, scheduler_running
+    
+    print("[VT SCHEDULER] Background worker started")
+    
+    while scheduler_running:
+        try:
+            if scan_queue:
+                print(f"[VT SCHEDULER] Running batch processor (queue: {len(scan_queue)} emails)")
+                process_vt_scan_batch(batch_size=4)
+            else:
+                print("[VT SCHEDULER] Queue is empty, pausing scheduler")
+                scheduler_running = False
+            
+            # Wait 60 seconds before next batch
+            time.sleep(60)
+        except Exception as e:
+            print(f"[VT SCHEDULER] Worker error: {e}")
+            time.sleep(60)
+
+def start_scheduler_if_needed():
+    """Start the background scheduler thread if enabled and conditions are met."""
+    global scheduler_thread, scheduler_running
+    
+    is_enabled = os.getenv('ENABLE_VT_SCHEDULER', 'false').lower() == 'true'
+    service_host = os.getenv('SERVICE_IMAP_HOST')
+    service_user = os.getenv('SERVICE_IMAP_USER')
+    
+    if not is_enabled:
+        print("[VT SCHEDULER] Opt-in scheduler is disabled (set ENABLE_VT_SCHEDULER=true to enable)")
+        return
+    
+    if not (service_host and service_user):
+        print("[VT SCHEDULER] ⚠️  Service account not configured. Set SERVICE_IMAP_HOST, SERVICE_IMAP_USER, SERVICE_IMAP_PASS to enable")
+        return
+    
+    if scheduler_running:
+        print("[VT SCHEDULER] Scheduler already running")
+        return
+    
+    load_scan_queue()
+    scheduler_running = True
+    scheduler_thread = threading.Thread(target=scheduler_worker, daemon=True)
+    scheduler_thread.start()
+    print("[VT SCHEDULER] ✓ Background scheduler started (batches 4 emails per minute)")
+
+def resume_scheduler_if_queue_not_empty():
+    """Resume scheduler if there are emails in queue and scheduler is not running."""
+    global scheduler_running
+    
+    is_enabled = os.getenv('ENABLE_VT_SCHEDULER', 'false').lower() == 'true'
+    
+    if not is_enabled:
+        return
+    
+    if scan_queue and not scheduler_running:
+        print(f"[VT SCHEDULER] Resuming scheduler (queue has {len(scan_queue)} emails)")
+        scheduler_running = True
+        # Start worker if thread exists
+        if scheduler_thread and not scheduler_thread.is_alive():
+            start_scheduler_if_needed()
 
 
 # --- New: scan_attachment using virustotal_python ---
@@ -360,6 +535,12 @@ app.config['SESSION_KEY_PREFIX'] = 'email_sec_'
 # Initialize Flask-Session for proper session management
 Session(app)
 
+# Load persistent cache at startup
+load_scanned_urls_cache()
+
+# Start VT scheduler if enabled and configured
+start_scheduler_if_needed()
+
 # Initialize Docker client with graceful fallback
 docker_client = None
 if docker is not None:
@@ -374,7 +555,7 @@ else:
 app.config['SHARED_VOLUME_PATH'] = os.path.abspath('shared_volume')
 app.config['UPLOAD_FOLDER'] = os.path.join(app.config['SHARED_VOLUME_PATH'], 'input')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
+# --- Admin endpoints removed ---
 # --- API: Manual VirusTotal Scan for Email ---
 @app.route('/api/scan-virus-total', methods=['POST'])
 @login_required
@@ -1184,8 +1365,25 @@ def sandbox_analyze():
 @app.route('/compose', methods=['GET', 'POST'])
 @login_required
 def compose():
+    pass
+
+
+
     if request.method == 'POST':
         data = request.json
+        print('[COMPOSE POST] received payload keys:', list(data.keys()) if isinstance(data, dict) else type(data))
+        try:
+            print('[COMPOSE POST] session active_email:', session.get('active_email'))
+            print('[COMPOSE POST] session has email_config:', 'email_config' in session)
+            if session.get('email_config'):
+                print('[COMPOSE POST] email_config keys:', list(session['email_config'].keys()))
+            # don't print passwords; only indicate presence
+            sender = session.get('active_email')
+            print('[COMPOSE POST] has password for active_email:', bool(sender and session.get(f'password_{sender}')))
+        except Exception as _:
+            print('[COMPOSE POST] session inspect failed')
+        to_addr = data.get('to')
+        subject = data.get('subject', '')
         content = data.get('content', '')
         encrypt = data.get('encrypt', False)
         sign = data.get('sign', False)
@@ -1206,10 +1404,64 @@ def compose():
         
         add_log_entry("Secure Email", "Encryption", "info", 
                      f"Email composed with encryption={encrypt}, signature={sign}")
-        
+
+        # Attempt to send if recipient provided and we have session credentials
+        send_info = None
+        send_error = None
+        try:
+            sender = None
+            # Prefer an explicit email_config if present
+            if session.get('email_config'):
+                sender = session['email_config'].get('email')
+                sender_pass = session['email_config'].get('pass')
+            else:
+                sender = session.get('active_email') or (session.get('imap_config') or {}).get('email')
+                sender_pass = session.get(f'password_{sender}') if sender else None
+
+            if to_addr and subject and sender and sender_pass:
+                msg = EmailMessage()
+                msg['From'] = sender
+                msg['To'] = to_addr
+                msg['Subject'] = subject
+                msg.set_content(content)
+                try:
+                    s = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15)
+                    s.login(sender, sender_pass)
+                    s.send_message(msg)
+                    s.quit()
+                    send_info = {'status': 'sent', 'via': 'smtp'}
+                except Exception as send_exc:
+                    send_error = str(send_exc)
+        except Exception as e:
+            print('[COMPOSE SEND ERROR]', e)
+
+        if send_info:
+            result['sent'] = True
+            result['send_info'] = send_info
+        else:
+            if send_error:
+                result['sent'] = False
+                result['send_error'] = send_error
+
         return jsonify(result)
     
     return render_template('compose.html')
+
+
+@app.route('/debug/compose-echo', methods=['POST'])
+def debug_compose_echo():
+    data = request.get_json(silent=True)
+    print('[DEBUG ECHO] received payload type:', type(data), 'keys:', list(data.keys()) if isinstance(data, dict) else None)
+    try:
+        active = session.get('active_email')
+        has_cfg = 'email_config' in session
+        has_pwd = bool(active and session.get(f'password_{active}'))
+    except Exception:
+        active = None
+        has_cfg = False
+        has_pwd = False
+    print('[DEBUG ECHO] session summary:', {'active_email': active, 'has_email_config': has_cfg, 'has_password_for_active': has_pwd})
+    return jsonify({'received': data, 'session_summary': {'active_email': bool(active), 'has_email_config': has_cfg, 'has_password_for_active': has_pwd}})
 
 @app.route('/alerts')
 @login_required
@@ -1609,6 +1861,23 @@ def fetch_emails(num_emails=50):
 
         mail.logout()
         print(f"Fetched {len(fetched_emails)} emails successfully")
+        
+        # *** VT SCHEDULER: Detect new emails and add to queue ***
+        if os.getenv('ENABLE_VT_SCHEDULER', 'false').lower() == 'true':
+            previous_count_key = f'vt_prev_email_count_{active_email}'
+            previous_count = session.get(previous_count_key, 0)
+            current_count = len(fetched_emails)
+            
+            if current_count > previous_count:
+                new_email_count = current_count - previous_count
+                new_emails = fetched_emails[:new_email_count]  # Most recent are first
+                new_email_ids = [e['id'] for e in new_emails]
+                print(f"[VT SCHEDULER] Detected {new_email_count} new emails")
+                add_to_scan_queue(new_email_ids)
+                resume_scheduler_if_queue_not_empty()
+            
+            session[previous_count_key] = current_count
+            session.modified = True
         
         # *** OPTIMIZATION: Cache the results for 30 seconds ***
         import time

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
 import { Shield, Inbox, AlertTriangle, Settings, Send, LogOut, LayoutDashboard, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -20,6 +21,9 @@ export function Sidebar() {
   const pathname = usePathname()
   const emails = useAppStore((state) => state.emails)
   const alerts = useAppStore((state) => state.alerts)
+
+  const router = useRouter()
+  const logout = useAppStore((state) => (state as any).logout)
 
   const quarantinedCount = emails.filter((e) => e.isQuarantined).length
   const unreadAlerts = alerts.filter((a) => a.severity === "critical" || a.severity === "high").length
@@ -71,16 +75,17 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <Link href="/">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-muted-foreground hover:text-destructive"
-            onClick={() => logout()}
-          >
-            <LogOut className="w-5 h-5 mr-3" />
-            Sign Out
-          </Button>
-        </Link>
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-muted-foreground hover:text-destructive"
+          onClick={() => {
+            if (logout) logout()
+            router.push('/')
+          }}
+        >
+          <LogOut className="w-5 h-5 mr-3" />
+          Sign Out
+        </Button>
       </div>
     </div>
   )

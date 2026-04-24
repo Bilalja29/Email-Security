@@ -248,23 +248,39 @@
         }
     }
 
-    // Form submission
+    // Form submission with debug logging
     document.getElementById('compose-form').addEventListener('submit', function (e) {
         e.preventDefault();
 
+        const to = document.getElementById('to-email').value;
+        const subject = document.getElementById('subject').value;
         const content = document.getElementById('content').value;
         const encrypt = document.getElementById('encrypt').checked;
         const sign = document.getElementById('sign').checked;
         const selfDestruct = document.getElementById('self-destruct').value;
 
+        const payload = { to, subject, content, encrypt, sign, selfDestruct };
+        console.log('[COMPOSE SEND] payload:', payload);
+
         fetch('/compose', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, encrypt, sign, selfDestruct })
+            body: JSON.stringify(payload)
         })
-            .then(res => res.json())
+            .then(res => {
+                console.log('[COMPOSE SEND] raw response:', res.status, res.statusText, res.headers);
+                return res.json().catch(err => {
+                    console.error('[COMPOSE SEND] JSON parse error', err);
+                    throw err;
+                });
+            })
             .then(result => {
+                console.log('[COMPOSE RESULT]', result);
                 showResultModal(result);
+            })
+            .catch(err => {
+                console.error('[COMPOSE ERROR]', err);
+                alert('Send failed: ' + (err && err.message ? err.message : String(err)));
             });
     });
 

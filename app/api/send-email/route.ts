@@ -3,15 +3,13 @@ import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
-  const { to, subject, body: messageBody, from } = body
+  const { to, subject, body: messageBody, from, selfDestructHours } = body
 
   if (!to || !subject || !messageBody) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
 
   try {
-<<<<<<< HEAD
-=======
     // Debug log so we can see incoming requests in server logs
     // (no secrets printed)
     console.log('SEND-API HIT', { to: to?.slice(0, 60), subject, hasResend: !!process.env.RESEND_API_KEY, hasSMTP: !!process.env.SMTP_HOST })
@@ -42,7 +40,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Email sent via Resend", result: data })
     }
 
->>>>>>> bd64b8e81b6a9b42e879826d71617fabd0515931
     let transporter
     let previewUrl: string | undefined
 
@@ -85,7 +82,18 @@ export async function POST(req: Request) {
       previewUrl = undefined
     }
 
-    return NextResponse.json({ message: "Email sent (dev).", previewUrl, info })
+    const responsePayload: any = { message: "Email sent (dev).", previewUrl, info }
+
+    if (selfDestructHours) {
+      try {
+        const expiresAt = new Date(Date.now() + Number(selfDestructHours) * 60 * 60 * 1000).toISOString()
+        responsePayload.selfDestruct = { enabled: true, expiresAt }
+      } catch (e) {
+        // ignore mapping errors
+      }
+    }
+
+    return NextResponse.json(responsePayload)
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Send failed" }, { status: 500 })
   }

@@ -69,10 +69,21 @@ export default function ComposePage() {
     setIsSending(true)
 
     try {
+      // Map select values to hours (backend expects hours or null)
+      const mapToHours = (v: string) => {
+        if (!v || v === 'none') return null
+        if (v === '1h') return 1
+        if (v === '1d') return 24
+        if (v === '1w') return 168
+        return null
+      }
+
+      const selfDestructHours = mapToHours(selfDestruct)
+
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, subject, body, enableEncryption, enableSignature }),
+        body: JSON.stringify({ to, subject, body, enableEncryption, enableSignature, selfDestructHours }),
       })
 
       const data = await res.json()
