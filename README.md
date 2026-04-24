@@ -93,11 +93,7 @@ The application includes 15 pre-loaded mock emails with various threat levels:
    - Behavior monitoring
    - Verdict generation (Clean/Suspicious/Malicious)
 
-3. **Data Protection**
-   - AES-256-GCM encryption
-   - RSA-2048 digital signatures
-   - Sensitive data detection (credit cards, SSN, IBAN)
-   - Self-destruct timers
+
 
 ## Team
 
